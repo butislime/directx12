@@ -33,7 +33,17 @@ LRESULT WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 	return DefWindowProc(hwnd, msg, wparam, lparam);
 }
 
-static auto window_width = 1280, window_height = 720;
+void EnableDebugLayer()
+{
+	ID3D12Debug* debugLayer = nullptr;
+	auto result = D3D12GetDebugInterface(IID_PPV_ARGS(&debugLayer));
+	// デバッグレイヤーの有効化
+	debugLayer->EnableDebugLayer();
+	// インターフェースの解放
+	debugLayer->Release();
+}
+
+static auto WINDOW_WIDTH = 1280, WINDOW_HEIGHT = 720;
 
 #ifdef _DEBUG
 int main()
@@ -54,7 +64,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	RegisterClassEx(&w);
 
-	RECT wrc = { 0, 0, window_width, window_height };
+	RECT wrc = { 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT };
 	AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
 
 	HWND hwnd = CreateWindow(w.lpszClassName,
@@ -71,13 +81,26 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	);
 	ShowWindow(hwnd, SW_SHOW);
 
+#ifdef _DEBUG
+	// デバッグレイヤーの有効化
+	EnableDebugLayer();
+#endif
+
 	// directx12 initialize
 	ID3D12Device* _dev = nullptr;
 	IDXGIFactory6* _dxgiFactory = nullptr;
 	IDXGISwapChain4* _swapchain = nullptr;
 
 	auto hresult = D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&_dev));
+#ifdef _DEBUG
+	hresult = CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&_dxgiFactory));
+#else
 	hresult = CreateDXGIFactory(IID_PPV_ARGS(&_dxgiFactory));
+#endif
+
+	ID3D12Fence* _fence = nullptr;
+	UINT64 _fenceVal = 0;
+	hresult = _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence));
 
 	ID3D12CommandAllocator* _cmdAllocator = nullptr;
 	ID3D12GraphicsCommandList* _cmdList = nullptr;
@@ -102,8 +125,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	DXGI_SWAP_CHAIN_DESC1 swapchainDesc = {};
 
-	swapchainDesc.Width = window_width;
-	swapchainDesc.Height = window_height;
+	swapchainDesc.Width = WINDOW_WIDTH;
+	swapchainDesc.Height = WINDOW_HEIGHT;
 	swapchainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	swapchainDesc.Stereo = false;
 	swapchainDesc.SampleDesc.Count = 1;
@@ -137,6 +160,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	hresult = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&rtvHeaps));
 
 	DXGI_SWAP_CHAIN_DESC swcDesc = {};
+	hresult = _swapchain->GetDesc(&swcDesc);
 	std::vector<ID3D12Resource*> _backBuffers(swcDesc.BufferCount);
 	for (int idx = 0; idx < swcDesc.BufferCount; ++idx)
 	{
@@ -151,6 +175,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
 	rtvH.ptr += bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+	D3D12_RESOURCE_BARRIER BarrierDesc = {};
+	BarrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	BarrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	BarrierDesc.Transition.pResource = _backBuffers[bbIdx];
+	BarrierDesc.Transition.Subresource = 0;
+	BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT; // present
+	BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET; // render target
+	_cmdList->ResourceBarrier(1, &BarrierDesc);
+
 	_cmdList->OMSetRenderTargets(1, &rtvH, true, nullptr);
 
 	float clearColor[] = { 1.0f, 1.0f, 0.0f, 1.0f };
@@ -160,6 +194,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	ID3D12CommandList* cmdlists[] = { _cmdList };
 	_cmdQueue->ExecuteCommandLists(1, cmdlists);
+
+	_cmdQueue->Signal(_fence, ++_fenceVal);
+	if (_fence->GetCompletedValue() != _fenceVal)
+	{
+		auto event = CreateEvent(nullptr, false, false, nullptr);
+		_fence->SetEventOnCompletion(_fenceVal, event);
+		// block
+		WaitForSingleObject(event, INFINITE);
+		CloseHandle(event);
+	}
+
+	BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET; // render target
+	BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT; // present
+	_cmdList->ResourceBarrier(1, &BarrierDesc);
 
 	_cmdAllocator->Reset();
 	_cmdList->Reset(_cmdAllocator, nullptr);
