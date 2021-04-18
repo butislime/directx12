@@ -56,8 +56,8 @@ int main()
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
 #endif
-	DebugOutputFormatString("Show Window Test.");
-	getchar();
+	//DebugOutputFormatString("Show Window Test.");
+	//getchar();
 
 	// window initialize
 	WNDCLASSEX w = {};
@@ -198,7 +198,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	{
 		{-1.0f, -1.0f, 0.0f},
 		{-1.0f,  1.0f, 0.0f},
-		{ 1.0f, -1.0f, 0.0f},
+		{ 1.0f, -1.0f, 0.0f}
 	};
 
 	// 頂点バッファの作成
@@ -267,7 +267,98 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		printf("ps res=%d not_found=%d\n", hresult, HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND));
 	}
 
-	//_cmdList->IASetVertexBuffers(0, 1, &vbView);
+	D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
+		{
+			"POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
+			D3D12_APPEND_ALIGNED_ELEMENT,
+			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+		},
+	};
+
+	// ルートシグネチャの作成
+	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
+	rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+	ID3DBlob* rootSigBlob = nullptr;
+	hresult = D3D12SerializeRootSignature(
+		&rootSignatureDesc,
+		D3D_ROOT_SIGNATURE_VERSION_1_0,
+		&rootSigBlob,
+		&errorBlob
+	);
+
+	ID3D12RootSignature* rootsignature = nullptr;
+	hresult = _dev->CreateRootSignature(
+		0,
+		rootSigBlob->GetBufferPointer(),
+		rootSigBlob->GetBufferSize(),
+		IID_PPV_ARGS(&rootsignature)
+	);
+	rootSigBlob->Release();
+
+	// グラフィックパイプラインの作成
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipeline = {};
+	gpipeline.pRootSignature = rootsignature;
+	gpipeline.VS.pShaderBytecode = vsBlob->GetBufferPointer();
+	gpipeline.VS.BytecodeLength = vsBlob->GetBufferSize();
+	gpipeline.PS.pShaderBytecode = psBlob->GetBufferPointer();
+	gpipeline.PS.BytecodeLength = psBlob->GetBufferSize();
+	// デフォルトのサンプルマスク
+	gpipeline.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
+	gpipeline.RasterizerState.MultisampleEnable = false;
+	gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	gpipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+	gpipeline.RasterizerState.DepthClipEnable = true;
+
+	gpipeline.BlendState.AlphaToCoverageEnable = false;
+	gpipeline.BlendState.IndependentBlendEnable = false;
+
+	D3D12_RENDER_TARGET_BLEND_DESC renderTargetBlendDesc = {};
+	renderTargetBlendDesc.BlendEnable = false;
+	renderTargetBlendDesc.LogicOpEnable = false;
+	renderTargetBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+	gpipeline.BlendState.RenderTarget[0] = renderTargetBlendDesc;
+
+	gpipeline.InputLayout.pInputElementDescs = inputLayout;
+	gpipeline.InputLayout.NumElements = _countof(inputLayout);
+
+	gpipeline.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
+	gpipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+
+	gpipeline.NumRenderTargets = 1;
+	gpipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+	gpipeline.SampleDesc.Count = 1;
+	gpipeline.SampleDesc.Quality = 0;
+
+	ID3D12PipelineState* _pipelinestate = nullptr;
+	hresult = _dev->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(&_pipelinestate));
+	printf("res=%d E_INVALIDARG=%d", hresult, E_INVALIDARG);
+
+	// viewport設定
+	D3D12_VIEWPORT viewport = {};
+	viewport.Width = WINDOW_WIDTH;
+	viewport.Height = WINDOW_HEIGHT;
+	viewport.TopLeftX = 0;
+	viewport.TopLeftY = 0;
+	viewport.MaxDepth = 1.0f;
+	viewport.MinDepth = 0.0f;
+
+	// シザー矩形
+	D3D12_RECT scissorrect = {};
+	scissorrect.top = 0;
+	scissorrect.left = 0;
+	scissorrect.right = scissorrect.left + WINDOW_WIDTH;
+	scissorrect.bottom = scissorrect.top + WINDOW_HEIGHT;
+
+	_cmdList->SetPipelineState(_pipelinestate);
+	_cmdList->SetGraphicsRootSignature(rootsignature);
+	_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	_cmdList->IASetVertexBuffers(0, 1, &vbView);
+	_cmdList->RSSetViewports(1, &viewport);
+	_cmdList->RSSetScissorRects(1, &scissorrect);
+	_cmdList->DrawInstanced(3, 1, 0, 0);
 
 	// 命令の終了
 	_cmdList->Close();
