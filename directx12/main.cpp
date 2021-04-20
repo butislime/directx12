@@ -83,7 +83,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		w.hInstance,
 		nullptr
 	);
-	ShowWindow(hwnd, SW_SHOW);
 
 #ifdef _DEBUG
 	// デバッグレイヤーの有効化
@@ -95,16 +94,45 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	IDXGIFactory6* _dxgiFactory = nullptr;
 	IDXGISwapChain4* _swapchain = nullptr;
 
-	auto hresult = D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(&_dev));
-#ifdef _DEBUG
-	hresult = CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&_dxgiFactory));
-#else
-	hresult = CreateDXGIFactory(IID_PPV_ARGS(&_dxgiFactory));
-#endif
+//#ifdef _DEBUG
+	//hresult = CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&_dxgiFactory));
+//#else
+	auto hresult = CreateDXGIFactory1(IID_PPV_ARGS(&_dxgiFactory));
+//#endif
+	std::vector<IDXGIAdapter*> adapters;
+	IDXGIAdapter* tmpAdapter = nullptr;
+	for (int i = 0; _dxgiFactory->EnumAdapters(i, &tmpAdapter) != DXGI_ERROR_NOT_FOUND; ++i)
+	{
+		adapters.push_back(tmpAdapter);
+	}
+	// nvidia gpu
+	for (auto adapter : adapters)
+	{
+		DXGI_ADAPTER_DESC adapterDesc = {};
+		adapter->GetDesc(&adapterDesc);
+		std::wstring strDesc = adapterDesc.Description;
+		if (strDesc.find(L"NVIDIA") != std::string::npos)
+		{
+			tmpAdapter = adapter;
+			break;
+		}
+	}
 
-	ID3D12Fence* _fence = nullptr;
-	UINT64 _fenceVal = 0;
-	hresult = _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence));
+	D3D_FEATURE_LEVEL levels[] = {
+		D3D_FEATURE_LEVEL_12_1,
+		D3D_FEATURE_LEVEL_12_0,
+		D3D_FEATURE_LEVEL_11_1,
+		D3D_FEATURE_LEVEL_11_0,
+	};
+	D3D_FEATURE_LEVEL featureLevel;
+	for (auto level : levels)
+	{
+		if (SUCCEEDED(D3D12CreateDevice(tmpAdapter, level, IID_PPV_ARGS(&_dev))))
+		{
+			featureLevel = level;
+			break;
+		}
+	}
 
 	ID3D12CommandAllocator* _cmdAllocator = nullptr;
 	ID3D12GraphicsCommandList* _cmdList = nullptr;
@@ -117,13 +145,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	// タイムアウトなし
 	cmdQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-
 	cmdQueueDesc.NodeMask = 0;
-
 	cmdQueueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
-
 	cmdQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-
 	// キュー生成
 	hresult = _dev->CreateCommandQueue(&cmdQueueDesc, IID_PPV_ARGS(&_cmdQueue));
 
@@ -137,13 +161,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	swapchainDesc.SampleDesc.Quality = 0;
 	swapchainDesc.BufferUsage = DXGI_USAGE_BACK_BUFFER;
 	swapchainDesc.BufferCount = 2;
-
 	swapchainDesc.Scaling = DXGI_SCALING_STRETCH;
-
 	swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-
 	swapchainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-
 	swapchainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
 	hresult = _dxgiFactory->CreateSwapChainForHwnd(
@@ -166,39 +186,25 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	DXGI_SWAP_CHAIN_DESC swcDesc = {};
 	hresult = _swapchain->GetDesc(&swcDesc);
 	std::vector<ID3D12Resource*> _backBuffers(swcDesc.BufferCount);
+	D3D12_CPU_DESCRIPTOR_HANDLE handle = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
 	for (int idx = 0; idx < swcDesc.BufferCount; ++idx)
 	{
 		hresult = _swapchain->GetBuffer(idx, IID_PPV_ARGS(&_backBuffers[idx]));
-		D3D12_CPU_DESCRIPTOR_HANDLE handle = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
-		handle.ptr += idx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 		_dev->CreateRenderTargetView(_backBuffers[idx], nullptr, handle);
+		handle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	}
 
-	hresult = _cmdAllocator->Reset();
-	auto bbIdx = _swapchain->GetCurrentBackBufferIndex();
+	ID3D12Fence* _fence = nullptr;
+	UINT64 _fenceVal = 0;
+	hresult = _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence));
 
-	auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
-	rtvH.ptr += bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
-	D3D12_RESOURCE_BARRIER BarrierDesc = {};
-	BarrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	BarrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	BarrierDesc.Transition.pResource = _backBuffers[bbIdx];
-	BarrierDesc.Transition.Subresource = 0;
-	BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT; // present
-	BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET; // render target
-	_cmdList->ResourceBarrier(1, &BarrierDesc);
-
-	_cmdList->OMSetRenderTargets(1, &rtvH, true, nullptr);
-
-	float clearColor[] = { 1.0f, 1.0f, 0.0f, 1.0f };
-	_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+	ShowWindow(hwnd, SW_SHOW);
 
 	DirectX::XMFLOAT3 vertices[] =
 	{
-		{-1.0f, -1.0f, 0.0f},
-		{-1.0f,  1.0f, 0.0f},
-		{ 1.0f, -1.0f, 0.0f}
+		{-0.5f, -0.7f, 0.0f},
+		{ 0.0f,  0.7f, 0.0f},
+		{ 0.5f, -0.7f, 0.0f},
 	};
 
 	// 頂点バッファの作成
@@ -269,7 +275,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
 		{
-			"POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
+			"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,
 			D3D12_APPEND_ALIGNED_ELEMENT,
 			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
 		},
@@ -352,39 +358,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	scissorrect.right = scissorrect.left + WINDOW_WIDTH;
 	scissorrect.bottom = scissorrect.top + WINDOW_HEIGHT;
 
-	_cmdList->SetPipelineState(_pipelinestate);
-	_cmdList->SetGraphicsRootSignature(rootsignature);
-	_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	_cmdList->IASetVertexBuffers(0, 1, &vbView);
-	_cmdList->RSSetViewports(1, &viewport);
-	_cmdList->RSSetScissorRects(1, &scissorrect);
-	_cmdList->DrawInstanced(3, 1, 0, 0);
-
-	// 命令の終了
-	_cmdList->Close();
-
-	ID3D12CommandList* cmdlists[] = { _cmdList };
-	_cmdQueue->ExecuteCommandLists(1, cmdlists);
-
-	_cmdQueue->Signal(_fence, ++_fenceVal);
-	if (_fence->GetCompletedValue() != _fenceVal)
-	{
-		auto event = CreateEvent(nullptr, false, false, nullptr);
-		_fence->SetEventOnCompletion(_fenceVal, event);
-		// block
-		WaitForSingleObject(event, INFINITE);
-		CloseHandle(event);
-	}
-
-	BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET; // render target
-	BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT; // present
-	_cmdList->ResourceBarrier(1, &BarrierDesc);
-
-	_cmdAllocator->Reset();
-	_cmdList->Reset(_cmdAllocator, nullptr);
-
-	_swapchain->Present(1, 0);
-
 	MSG msg = {};
 
 	while (true)
@@ -399,6 +372,59 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		{
 			break;
 		}
+
+		auto bbIdx = _swapchain->GetCurrentBackBufferIndex();
+
+		D3D12_RESOURCE_BARRIER BarrierDesc = {};
+		BarrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+		BarrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+		BarrierDesc.Transition.pResource = _backBuffers[bbIdx];
+		BarrierDesc.Transition.Subresource = 0;
+		BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT; // present
+		BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET; // render target
+		_cmdList->ResourceBarrier(1, &BarrierDesc);
+
+		_cmdList->SetPipelineState(_pipelinestate);
+
+		auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
+		rtvH.ptr += bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		_cmdList->OMSetRenderTargets(1, &rtvH, true, nullptr);
+
+		float clearColor[] = { 1.0f, 1.0f, 0.0f, 1.0f };
+		_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+
+		_cmdList->RSSetViewports(1, &viewport);
+		_cmdList->RSSetScissorRects(1, &scissorrect);
+		_cmdList->SetGraphicsRootSignature(rootsignature);
+
+		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		_cmdList->IASetVertexBuffers(0, 1, &vbView);
+		_cmdList->DrawInstanced(3, 1, 0, 0);
+
+		BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET; // render target
+		BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT; // present
+		_cmdList->ResourceBarrier(1, &BarrierDesc);
+
+		// 命令の終了
+		_cmdList->Close();
+
+		ID3D12CommandList* cmdlists[] = { _cmdList };
+		_cmdQueue->ExecuteCommandLists(1, cmdlists);
+
+		_cmdQueue->Signal(_fence, ++_fenceVal);
+		if (_fence->GetCompletedValue() != _fenceVal)
+		{
+			auto event = CreateEvent(nullptr, false, false, nullptr);
+			_fence->SetEventOnCompletion(_fenceVal, event);
+			// block
+			WaitForSingleObject(event, INFINITE);
+			CloseHandle(event);
+		}
+
+		_cmdAllocator->Reset();
+		_cmdList->Reset(_cmdAllocator, _pipelinestate);
+
+		_swapchain->Present(1, 0);
 	}
 
 	UnregisterClass(w.lpszClassName, w.hInstance);
