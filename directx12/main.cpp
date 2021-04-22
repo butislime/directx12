@@ -1,15 +1,16 @@
-#include <Windows.h>
 #include <tchar.h>
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <DirectXMath.h>
 #include <d3dcompiler.h>
+#include <DirectXTex.h>
 
 #include <vector>
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
+#pragma comment(lib, "DirectXTex.lib")
 
 #ifdef _DEBUG
 #include <iostream>
@@ -64,6 +65,7 @@ static auto WINDOW_WIDTH = 1280, WINDOW_HEIGHT = 720;
 int main()
 {
 #else
+#include <Windows.h>
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
 #endif
@@ -198,16 +200,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	hresult = _swapchain->GetDesc(&swcDesc);
 	std::vector<ID3D12Resource*> _backBuffers(swcDesc.BufferCount);
 	D3D12_CPU_DESCRIPTOR_HANDLE handle = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
+	// sRGB
+	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+	rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 	for (int idx = 0; idx < swcDesc.BufferCount; ++idx)
 	{
 		hresult = _swapchain->GetBuffer(idx, IID_PPV_ARGS(&_backBuffers[idx]));
-		_dev->CreateRenderTargetView(_backBuffers[idx], nullptr, handle);
+		_dev->CreateRenderTargetView(_backBuffers[idx], &rtvDesc, handle);
 		handle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	}
 
 	ID3D12Fence* _fence = nullptr;
 	UINT64 _fenceVal = 0;
 	hresult = _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence));
+
+	hresult = CoInitializeEx(0, COINIT_MULTITHREADED);
 
 	ShowWindow(hwnd, SW_SHOW);
 
@@ -284,14 +292,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	ibView.SizeInBytes = sizeof(indices);
 
 	// texture
-	std::vector<TexRGBA> texturedata(256 * 256);
-	for (auto& rgba : texturedata)
-	{
-		rgba.r = rand() % 256;
-		rgba.g = rand() % 256;
-		rgba.b = rand() % 256;
-		rgba.a = 255;
-	}
+	DirectX::TexMetadata metadata = {};
+	DirectX::ScratchImage scratchImg = {};
+	hresult = DirectX::LoadFromWICFile(
+		L"texture/textest.png", DirectX::WIC_FLAGS_NONE,
+		&metadata, scratchImg
+	);
+	auto img = scratchImg.GetImage(0, 0, 0);
 
 	heapprop = {};
 	heapprop.Type = D3D12_HEAP_TYPE_CUSTOM;
@@ -301,14 +308,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	heapprop.VisibleNodeMask = 0;
 
 	resdesc = {};
-	resdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	resdesc.Width = 256;
-	resdesc.Height = 256;
-	resdesc.DepthOrArraySize = 1;
+	resdesc.Format = metadata.format;
+	resdesc.Width = metadata.width;
+	resdesc.Height = metadata.height;
+	resdesc.DepthOrArraySize = metadata.arraySize;
 	resdesc.SampleDesc.Count = 1;
 	resdesc.SampleDesc.Quality = 0;
-	resdesc.MipLevels = 1;
-	resdesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	resdesc.MipLevels = metadata.mipLevels;
+	resdesc.Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(metadata.dimension);
 	resdesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	resdesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
@@ -324,9 +331,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	hresult = texbuff->WriteToSubresource(
 		0,
 		nullptr,
-		texturedata.data(),
-		sizeof(TexRGBA) * 256,
-		sizeof(TexRGBA) * texturedata.size()
+		img->pixels,
+		img->rowPitch,
+		img->slicePitch
 	);
 
 	ID3D12DescriptorHeap* texDescHeap = nullptr;
@@ -340,7 +347,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	// shader resource view
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	srvDesc.Format = metadata.format;
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MipLevels = 1;
