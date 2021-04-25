@@ -1,2 +1,2 @@
 # directx12
-「DirectX12の魔導書」の実装
+「DirectX12の魔導書」の写経、実装
