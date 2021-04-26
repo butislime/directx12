@@ -448,7 +448,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	printf("CreateDescriptorHeap res=%d\n", hresult);
 
 	// matrix
-	//DirectX::XMMATRIX matrix = DirectX::XMMatrixIdentity();
 	// world
 	DirectX::XMMATRIX worldMat = DirectX::XMMatrixRotationY(DirectX::XM_PIDIV4);
 	// view
@@ -470,6 +469,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	DirectX::XMMATRIX matrix = worldMat * viewMat * projMat;
 	// 2d
 	/*
+	DirectX::XMMATRIX matrix = DirectX::XMMatrixIdentity();
 	matrix.r[0].m128_f32[0] = 2.0f / WINDOW_WIDTH;
 	matrix.r[1].m128_f32[1] = -2.0f / WINDOW_HEIGHT;
 	matrix.r[3].m128_f32[0] = -1.0f;
@@ -662,6 +662,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	scissorrect.right = scissorrect.left + WINDOW_WIDTH;
 	scissorrect.bottom = scissorrect.top + WINDOW_HEIGHT;
 
+	auto angle = 0.0f;
+
 	MSG msg = {};
 	while (true)
 	{
@@ -701,6 +703,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		_cmdList->SetGraphicsRootSignature(rootsignature);
 		_cmdList->SetDescriptorHeaps(1, &basicDescHeap);
 		_cmdList->SetGraphicsRootDescriptorTable(0, basicDescHeap->GetGPUDescriptorHandleForHeapStart());
+
+		angle += 0.1f;
+		worldMat = DirectX::XMMatrixRotationY(angle);
+		*mapMatrix = worldMat * viewMat * projMat;
 
 		D3D12_RESOURCE_BARRIER TexBarrierDesc = {};
 		TexBarrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
