@@ -17,8 +17,6 @@
 #include <iostream>
 #endif
 
-using namespace std;
-
 struct Vertex
 {
 	DirectX::XMFLOAT3 pos;
@@ -233,10 +231,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	Vertex vertices[] =
 	{
+		/*
 		{{   0.0f, 100.0f, 0.0f}, {0.0f, 1.0f}}, // 左下
 		{{   0.0f,   0.0f, 0.0f}, {0.0f, 0.0f}}, // 左上
 		{{ 100.0f, 100.0f, 0.0f}, {1.0f, 1.0f}}, // 右下
 		{{ 100.0f,   0.0f, 0.0f}, {1.0f, 0.0f}}, // 右上
+		*/
+		{{-1.0f, -1.0f, 0.0f}, {0.0f, 1.0f}}, // 左下
+		{{-1.0f,  1.0f, 0.0f}, {0.0f, 0.0f}}, // 左上
+		{{ 1.0f, -1.0f, 0.0f}, {1.0f, 1.0f}}, // 右下
+		{{ 1.0f,  1.0f, 0.0f}, {1.0f, 0.0f}}, // 右上
 	};
 
 	D3D12_RESOURCE_DESC resdesc = {};
@@ -444,12 +448,33 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	printf("CreateDescriptorHeap res=%d\n", hresult);
 
 	// matrix
-	DirectX::XMMATRIX matrix = DirectX::XMMatrixIdentity();
+	//DirectX::XMMATRIX matrix = DirectX::XMMatrixIdentity();
+	// world
+	DirectX::XMMATRIX worldMat = DirectX::XMMatrixRotationY(DirectX::XM_PIDIV4);
+	// view
+	DirectX::XMFLOAT3 eye(0, 0, -5);
+	DirectX::XMFLOAT3 target(0, 0, 0);
+	DirectX::XMFLOAT3 up(0, 1, 0);
+	DirectX::XMMATRIX viewMat = DirectX::XMMatrixLookAtLH(
+		DirectX::XMLoadFloat3(&eye),
+		DirectX::XMLoadFloat3(&target),
+		DirectX::XMLoadFloat3(&up)
+	);
+	// projection
+	DirectX::XMMATRIX projMat = DirectX::XMMatrixPerspectiveFovLH(
+		DirectX::XM_PIDIV2,
+		static_cast<float>(WINDOW_WIDTH) / static_cast<float>(WINDOW_HEIGHT),
+		1.0f, // near
+		10.0f // far
+	);
+	DirectX::XMMATRIX matrix = worldMat * viewMat * projMat;
 	// 2d
+	/*
 	matrix.r[0].m128_f32[0] = 2.0f / WINDOW_WIDTH;
 	matrix.r[1].m128_f32[1] = -2.0f / WINDOW_HEIGHT;
 	matrix.r[3].m128_f32[0] = -1.0f;
 	matrix.r[3].m128_f32[1] = 1.0f;
+	*/
 	// 定数バッファ作成
 	ID3D12Resource* constBuff = nullptr;
 	auto matHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
