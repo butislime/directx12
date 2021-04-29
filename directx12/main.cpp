@@ -223,27 +223,58 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	UINT64 _fenceVal = 0;
 	hresult = _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence));
 
-	hresult = CoInitializeEx(0, COINIT_MULTITHREADED);
+	// 深度バッファ
+	D3D12_RESOURCE_DESC depthResDesc = {};
+	depthResDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	depthResDesc.Width = WINDOW_WIDTH;
+	depthResDesc.Height = WINDOW_HEIGHT;
+	depthResDesc.DepthOrArraySize = 1;
+	depthResDesc.Format = DXGI_FORMAT_D32_FLOAT; // 32bit深度値フォーマット
+	depthResDesc.SampleDesc.Count = 1;
+	depthResDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
+	D3D12_HEAP_PROPERTIES depthHeapProp = {};
+	depthHeapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
+	depthHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	depthHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+
+	// 深度バッファのクリア設定
+	D3D12_CLEAR_VALUE depthClearValue = {};
+	depthClearValue.DepthStencil.Depth = 1.0f;
+	depthClearValue.Format = DXGI_FORMAT_D32_FLOAT;
+
+	ID3D12Resource* depthBuffer = nullptr;
+	hresult = _dev->CreateCommittedResource(
+		&depthHeapProp,
+		D3D12_HEAP_FLAG_NONE,
+		&depthResDesc,
+		D3D12_RESOURCE_STATE_DEPTH_WRITE, // 深度値書き込み
+		&depthClearValue,
+		IID_PPV_ARGS(&depthBuffer)
+	);
+	std::cout << "depth buffer res=" << hresult << std::endl;
+
+	// depth stencil view
+	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
+	dsvHeapDesc.NumDescriptors = 1;
+	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	ID3D12DescriptorHeap* dsvHeap = nullptr;
+	hresult = _dev->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&dsvHeap));
+
+	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+	dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
+	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+	_dev->CreateDepthStencilView(
+		depthBuffer,
+		&dsvDesc,
+		dsvHeap->GetCPUDescriptorHandleForHeapStart()
+	);
+
+	hresult = CoInitializeEx(0, COINIT_MULTITHREADED);
 	ShowWindow(hwnd, SW_SHOW);
 
 	// 頂点バッファの作成
-#if false
-	Vertex vertices[] =
-	{
-		/*
-		{{   0.0f, 100.0f, 0.0f}, {0.0f, 1.0f}}, // 左下
-		{{   0.0f,   0.0f, 0.0f}, {0.0f, 0.0f}}, // 左上
-		{{ 100.0f, 100.0f, 0.0f}, {1.0f, 1.0f}}, // 右下
-		{{ 100.0f,   0.0f, 0.0f}, {1.0f, 0.0f}}, // 右上
-		*/
-		{{-1.0f, -1.0f, 0.0f}, {0.0f, 1.0f}}, // 左下
-		{{-1.0f,  1.0f, 0.0f}, {0.0f, 0.0f}}, // 左上
-		{{ 1.0f, -1.0f, 0.0f}, {1.0f, 1.0f}}, // 右下
-		{{ 1.0f,  1.0f, 0.0f}, {1.0f, 0.0f}}, // 右上
-	};
-#endif
-
 	ID3D12Resource* vertBuff = nullptr;
 	D3D12_HEAP_PROPERTIES heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 	D3D12_RESOURCE_DESC resdesc = CD3DX12_RESOURCE_DESC::Buffer(pmd.vertices.size());
@@ -296,43 +327,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		&metadata, scratchImg
 	);
 	auto img = scratchImg.GetImage(0, 0, 0);
-#if false
-	heapprop = {};
-	heapprop.Type = D3D12_HEAP_TYPE_CUSTOM;
-	heapprop.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;
-	heapprop.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;
-	heapprop.CreationNodeMask = 0;
-	heapprop.VisibleNodeMask = 0;
-
-	resdesc = {};
-	resdesc.Format = metadata.format;
-	resdesc.Width = metadata.width;
-	resdesc.Height = metadata.height;
-	resdesc.DepthOrArraySize = metadata.arraySize;
-	resdesc.SampleDesc.Count = 1;
-	resdesc.SampleDesc.Quality = 0;
-	resdesc.MipLevels = metadata.mipLevels;
-	resdesc.Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(metadata.dimension);
-	resdesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	resdesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-
-	ID3D12Resource* texbuff = nullptr;
-	hresult = _dev->CreateCommittedResource(
-		&heapprop,
-		D3D12_HEAP_FLAG_NONE,
-		&resdesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		nullptr,
-		IID_PPV_ARGS(&texbuff)
-	);
-	hresult = texbuff->WriteToSubresource(
-		0,
-		nullptr,
-		img->pixels,
-		img->rowPitch,
-		img->slicePitch
-	);
-#else
 	D3D12_HEAP_PROPERTIES uploadHeapProp = {};
 	uploadHeapProp.Type = D3D12_HEAP_TYPE_UPLOAD;
 	// upload用なのでunknown
@@ -423,7 +417,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	dst.pResource = texBuff;
 	dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 	dst.SubresourceIndex = 0;
-#endif
 
 	ID3D12DescriptorHeap* basicDescHeap = nullptr;
 	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
@@ -454,14 +447,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		100.0f // far
 	);
 	DirectX::XMMATRIX matrix = worldMat * viewMat * projMat;
-	// 2d
-	/*
-	DirectX::XMMATRIX matrix = DirectX::XMMatrixIdentity();
-	matrix.r[0].m128_f32[0] = 2.0f / WINDOW_WIDTH;
-	matrix.r[1].m128_f32[1] = -2.0f / WINDOW_HEIGHT;
-	matrix.r[3].m128_f32[0] = -1.0f;
-	matrix.r[3].m128_f32[1] = 1.0f;
-	*/
 	// 定数バッファ作成
 	ID3D12Resource* constBuff = nullptr;
 	auto matHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
@@ -643,6 +628,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	gpipeline.SampleDesc.Count = 1;
 	gpipeline.SampleDesc.Quality = 0;
 
+	// depth stencil
+	gpipeline.DepthStencilState.DepthEnable = true;
+	gpipeline.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	gpipeline.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	gpipeline.DepthStencilState.StencilEnable = false;
+	gpipeline.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+
 	ID3D12PipelineState* _pipelinestate = nullptr;
 	hresult = _dev->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(&_pipelinestate));
 	printf("res=%d E_INVALIDARG=%d", hresult, E_INVALIDARG);
@@ -692,10 +684,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 		auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
 		rtvH.ptr += bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-		_cmdList->OMSetRenderTargets(1, &rtvH, true, nullptr);
+		auto dsvHandle = dsvHeap->GetCPUDescriptorHandleForHeapStart();
+		_cmdList->OMSetRenderTargets(1, &rtvH, true, &dsvHandle);
 
+		// clear
 		float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
 		_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+		_cmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f/*最大深度*/, 0, 0, nullptr);
 
 		_cmdList->RSSetViewports(1, &viewport);
 		_cmdList->RSSetScissorRects(1, &scissorrect);

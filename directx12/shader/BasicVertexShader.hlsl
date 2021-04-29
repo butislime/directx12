@@ -9,6 +9,7 @@ Output BasicVS(
 {
 	Output output;
 	output.svpos = mul(mat, pos);
+	output.normal = normal;
 	output.uv = uv;
 	return output;
 }
