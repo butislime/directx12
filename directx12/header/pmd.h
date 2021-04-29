@@ -20,6 +20,21 @@ struct PMDVertex
 };
 constexpr size_t pmdvertex_size = 38;
 
+#pragma pack(1)
+struct PMDMaterial
+{
+	DirectX::XMFLOAT3 diffuse;
+	float alpha;
+	float specularity;
+	DirectX::XMFLOAT3 specular;
+	DirectX::XMFLOAT3 ambient;
+	unsigned char toonIdx;
+	unsigned char edgeFlag;
+	unsigned int indicesNum;
+	char texFilePath[20];
+};
+#pragma pack()
+
 struct PMD
 {
 	PMDHeader header;
@@ -27,6 +42,7 @@ struct PMD
 	unsigned int vertNum;
 	std::vector<unsigned char> vertices;
 	std::vector<unsigned short> indices;
+	std::vector<PMDMaterial> materials;
 };
 
 PMDHeader LoadPMDHeader(const std::string& path);

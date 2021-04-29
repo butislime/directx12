@@ -12,3 +12,9 @@ cbuffer cbuff0 : register(b0)
 	matrix world; // ワールド変換行列
 	matrix viewProj; // ビュープロジェクション行列
 };
+cbuffer Material : register(b1)
+{
+	float4 diffuse; // a=alpha
+	float4 specular; // a=specularity
+	float3 ambient;
+};

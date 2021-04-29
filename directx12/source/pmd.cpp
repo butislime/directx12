@@ -46,6 +46,12 @@ PMD LoadPMD(const std::string& path)
 	pmd.indices.resize(indices_num);
 	fread(pmd.indices.data(), pmd.indices.size() * sizeof(pmd.indices[0]), 1, fp);
 
+	unsigned int material_num;
+	fread(&material_num, sizeof(material_num), 1, fp);
+	std::cout << "material num:" << material_num << std::endl;
+	pmd.materials.resize(material_num);
+	fread(pmd.materials.data(), pmd.materials.size() * sizeof(PMDMaterial), 1, fp);
+
 	fclose(fp);
 
 	return pmd;
