@@ -30,6 +30,12 @@ struct TexRGBA
 	unsigned char r, g, b, a;
 };
 
+struct MatricesData
+{
+	DirectX::XMMATRIX world;
+	DirectX::XMMATRIX viewProj;
+};
+
 void DebugOutputFormatString(const char* format, ...)
 {
 #ifdef _DEBUG
@@ -429,7 +435,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	// matrix
 	// world
-	DirectX::XMMATRIX worldMat = DirectX::XMMatrixIdentity();
+	//DirectX::XMMATRIX worldMat = DirectX::XMMatrixIdentity();
+	DirectX::XMMATRIX worldMat = DirectX::XMMatrixRotationY(DirectX::XM_PI);
 	// view
 	DirectX::XMFLOAT3 eye(0, 10, -15);
 	DirectX::XMFLOAT3 target(0, 10, 0);
@@ -450,7 +457,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// 定数バッファ作成
 	ID3D12Resource* constBuff = nullptr;
 	auto matHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-	auto matResourceDesc = CD3DX12_RESOURCE_DESC::Buffer((sizeof(matrix) + 0xff & ~0xff));
+	auto matResourceDesc = CD3DX12_RESOURCE_DESC::Buffer((sizeof(MatricesData) + 0xff & ~0xff));
 	_dev->CreateCommittedResource(
 		&matHeapProp,
 		D3D12_HEAP_FLAG_NONE,
@@ -459,9 +466,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		nullptr,
 		IID_PPV_ARGS(&constBuff)
 	);
-	DirectX::XMMATRIX* mapMatrix;
+	MatricesData* mapMatrix;
 	hresult = constBuff->Map(0, nullptr, (void**)&mapMatrix);
-	*mapMatrix = matrix;
+	mapMatrix->world = worldMat;
+	mapMatrix->viewProj = viewMat * projMat;
 
 	// shader resource view
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
