@@ -40,6 +40,12 @@ PMD LoadPMD(const std::string& path)
 	pmd.vertices.resize(read_size);
 	fread(pmd.vertices.data(), read_size, 1, fp);
 
+	unsigned int indices_num;
+	fread(&indices_num, sizeof(indices_num), 1, fp);
+	std::cout << "indices num:" << indices_num << std::endl;
+	pmd.indices.resize(indices_num);
+	fread(pmd.indices.data(), pmd.indices.size() * sizeof(pmd.indices[0]), 1, fp);
+
 	fclose(fp);
 
 	return pmd;

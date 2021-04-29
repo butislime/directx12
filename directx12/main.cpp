@@ -267,13 +267,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	vbView.SizeInBytes = pmd.vertices.size(); // 全バイト数
 	vbView.StrideInBytes = pmdvertex_size;
 
-	unsigned int indices[] = {
-		0, 1, 2,
-		2, 1, 3,
-	};
-
 	ID3D12Resource* idxBuff = nullptr;
-	resdesc.Width = sizeof(indices);
+	resdesc = CD3DX12_RESOURCE_DESC::Buffer(pmd.indices.size() * sizeof(pmd.indices[0]));
 	hresult = _dev->CreateCommittedResource(
 		&heapprop,
 		D3D12_HEAP_FLAG_NONE,
@@ -285,13 +280,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	unsigned short* mappedIdx = nullptr;
 	idxBuff->Map(0, nullptr, (void**)&mappedIdx);
-	std::copy(std::begin(indices), std::end(indices), mappedIdx);
+	std::copy(std::begin(pmd.indices), std::end(pmd.indices), mappedIdx);
 	idxBuff->Unmap(0, nullptr);
 
 	D3D12_INDEX_BUFFER_VIEW ibView = {};
 	ibView.BufferLocation = idxBuff->GetGPUVirtualAddress();
 	ibView.Format = DXGI_FORMAT_R16_UINT;
-	ibView.SizeInBytes = sizeof(indices);
+	ibView.SizeInBytes = pmd.indices.size() * sizeof(pmd.indices[0]);
 
 	// texture
 	DirectX::TexMetadata metadata = {};
@@ -719,11 +714,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 		_cmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
 
-		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST);
+		_cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		_cmdList->IASetVertexBuffers(0, 1, &vbView);
-		_cmdList->DrawInstanced(pmd.vertNum, 1, 0, 0);
-		//_cmdList->IASetIndexBuffer(&ibView);
-		//_cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
+		_cmdList->IASetIndexBuffer(&ibView);
+		_cmdList->DrawIndexedInstanced(pmd.indices.size(), 1, 0, 0, 0);
 
 		BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET; // render target
 		BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT; // present

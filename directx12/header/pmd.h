@@ -26,6 +26,7 @@ struct PMD
 	//std::vector<PMDVertex> vertices;
 	unsigned int vertNum;
 	std::vector<unsigned char> vertices;
+	std::vector<unsigned short> indices;
 };
 
 PMDHeader LoadPMDHeader(const std::string& path);
