@@ -45,5 +45,8 @@ struct PMD
 	std::vector<PMDMaterial> materials;
 };
 
+std::string GetTexturePathFromModelAndTexPath(const std::string& modelPath, const char* texPath);
+std::wstring GetWideStringFromString(const std::string& str);
+
 PMDHeader LoadPMDHeader(const std::string& path);
 PMD LoadPMD(const std::string& path);

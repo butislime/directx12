@@ -1,6 +1,31 @@
 #include "../header/pmd.h"
 #include <stdio.h>
 #include <iostream>
+#include <Windows.h>
+
+//! テクスチャパスの変換
+std::string GetTexturePathFromModelAndTexPath(
+	const std::string& modelPath,
+	const char* texPath
+)
+{
+	int pathIndex1 = modelPath.rfind('/');
+	int pathIndex2 = modelPath.rfind('\\');
+	auto pathIndex = max(pathIndex1, pathIndex2);
+	auto folderPath = modelPath.substr(0, pathIndex+1);
+	return folderPath + texPath;
+}
+
+//! std::stringからstd::wstringへの変換
+std::wstring GetWideStringFromString(const std::string& str)
+{
+	auto num1 = MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED | MB_ERR_INVALID_CHARS, str.c_str(), -1, nullptr, 0);
+	std::wstring wstr;
+	wstr.resize(num1);
+	auto num2 = MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED | MB_ERR_INVALID_CHARS, str.c_str(), -1, &wstr[0], num1);
+	assert(num1 == num2);
+	return wstr;
+}
 
 PMDHeader LoadPMDHeader(const std::string& path)
 {
