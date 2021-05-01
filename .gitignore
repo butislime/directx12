@@ -5,3 +5,5 @@ Debug
 *.vcxproj
 *.vcxproj.filters
 *.vcxproj.user
+
+directx12/model
