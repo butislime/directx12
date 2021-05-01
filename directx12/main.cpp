@@ -7,6 +7,7 @@
 #include <d3dx12.h>
 
 #include <vector>
+#include <algorithm>
 
 #include "header/pmd.h"
 
@@ -252,7 +253,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	EnableDebugLayer();
 #endif
 
-	std::string strModelPath = "model/èââπÉ~ÉN.pmd";
+	std::string strModelPath = "model/èÑâπÉãÉJ.pmd";
 	auto pmd = LoadPMD(strModelPath);
 	std::vector<Material> materials(pmd.materials.size());
 	for (int i = 0; i < pmd.materials.size(); ++i)
@@ -583,7 +584,24 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			textureResources[i] = nullptr;
 		}
 
-		auto texFilePath = GetTexturePathFromModelAndTexPath(strModelPath, pmd.materials[i].texFilePath);
+		std::string texFileName = pmd.materials[i].texFilePath;
+		if (std::count(texFileName.begin(), texFileName.end(), '*') > 0)
+		{
+			// ï™äÑÇ∑ÇÈ
+			auto namepair = SplitFileName(texFileName);
+			if (GetExtension(namepair.first) == "sph" ||
+				GetExtension(namepair.first) == "spa")
+			{
+				texFileName = namepair.second;
+			}
+			else
+			{
+				texFileName = namepair.first;
+			}
+		}
+
+		//std::cout << "tex path=" << pmd.materials[i].texFilePath << std::endl;
+		auto texFilePath = GetTexturePathFromModelAndTexPath(strModelPath, texFileName.c_str());
 		std::cout << "tex path=" << texFilePath << std::endl;
 		textureResources[i] = LoadTextureFromFile(_dev, texFilePath);
 	}

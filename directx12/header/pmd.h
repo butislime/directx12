@@ -47,6 +47,8 @@ struct PMD
 
 std::string GetTexturePathFromModelAndTexPath(const std::string& modelPath, const char* texPath);
 std::wstring GetWideStringFromString(const std::string& str);
+std::string GetExtension(const std::string& path);
+std::pair<std::string, std::string> SplitFileName(const std::string& path, const char splitter = '*');
 
 PMDHeader LoadPMDHeader(const std::string& path);
 PMD LoadPMD(const std::string& path);

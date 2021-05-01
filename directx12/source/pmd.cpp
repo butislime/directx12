@@ -27,6 +27,23 @@ std::wstring GetWideStringFromString(const std::string& str)
 	return wstr;
 }
 
+//! ファイル名から拡張子を取得
+std::string GetExtension(const std::string& path)
+{
+	int idx = path.rfind('.');
+	return path.substr(idx + 1, path.length() - idx - 1);
+}
+
+//! テクスチャのパスをセパレータで分離
+std::pair<std::string, std::string> SplitFileName(const std::string& path, const char splitter)
+{
+	int idx = path.find(splitter);
+	std::pair<std::string, std::string> ret;
+	ret.first = path.substr(0, idx);
+	ret.second = path.substr(idx + 1, path.length() - idx - 1);
+	return ret;
+}
+
 PMDHeader LoadPMDHeader(const std::string& path)
 {
 	char signature[3] = {}; // シグネチャ"pmd"
