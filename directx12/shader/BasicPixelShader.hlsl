@@ -8,5 +8,6 @@ float4 BasicPS(Output input) : SV_TARGET
 	float2 normalUV = (input.normal.xy + float2(1, -1)) * float2(0.5, -0.5);
 	return float4(brightness.xxx, 1) * diffuse
 		* tex.Sample(smp, input.uv)
-		* sph.Sample(smp, normalUV); // スフィアマップ
+		* sph.Sample(smp, normalUV) // 乗算スフィアマップ
+		+ spa.Sample(smp, normalUV); // 加算スフィアマップ
 }
