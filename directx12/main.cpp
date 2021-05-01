@@ -253,7 +253,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	EnableDebugLayer();
 #endif
 
-	std::string strModelPath = "model/巡音ルカ.pmd";
+	std::string strModelPath = "model/初音ミク.pmd";
 	auto pmd = LoadPMD(strModelPath);
 	std::vector<Material> materials(pmd.materials.size());
 	for (int i = 0; i < pmd.materials.size(); ++i)
@@ -577,6 +577,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 #endif
 
 	std::vector<ID3D12Resource*> textureResources(pmd.materials.size());
+	std::vector<ID3D12Resource*> sphResources(pmd.materials.size());
 	for (int i = 0; i < pmd.materials.size(); ++i)
 	{
 		if (strlen(pmd.materials[i].texFilePath) == 0)
@@ -584,26 +585,59 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			textureResources[i] = nullptr;
 		}
 
-		std::string texFileName = pmd.materials[i].texFilePath;
-		if (std::count(texFileName.begin(), texFileName.end(), '*') > 0)
+		std::cout << "texFilePath=" << pmd.materials[i].texFilePath << std::endl;
+		std::string fileName = pmd.materials[i].texFilePath;
+		std::string texFileName = std::string();
+		std::string sphFileName = std::string();
+		std::string spaFileName = std::string();
+		if (std::count(fileName.begin(), fileName.end(), '*') > 0)
 		{
 			// 分割する
-			auto namepair = SplitFileName(texFileName);
+			auto namepair = SplitFileName(fileName);
 			if (GetExtension(namepair.first) == "sph" ||
 				GetExtension(namepair.first) == "spa")
 			{
 				texFileName = namepair.second;
+				if (GetExtension(namepair.first) == "sph")
+					sphFileName = namepair.first;
+				else if(GetExtension(namepair.first) == "spa")
+					spaFileName = namepair.first;
 			}
 			else
 			{
 				texFileName = namepair.first;
+				if (GetExtension(namepair.second) == "sph")
+					sphFileName = namepair.second;
+				else if(GetExtension(namepair.second) == "spa")
+					spaFileName = namepair.second;
 			}
 		}
+		else
+		{
+			auto ext = GetExtension(fileName);
+			if (ext == "sph")
+				sphFileName = fileName;
+			else if (ext == "spa")
+				spaFileName = fileName;
+			else
+				texFileName = fileName;
+		}
 
-		//std::cout << "tex path=" << pmd.materials[i].texFilePath << std::endl;
-		auto texFilePath = GetTexturePathFromModelAndTexPath(strModelPath, texFileName.c_str());
-		std::cout << "tex path=" << texFilePath << std::endl;
-		textureResources[i] = LoadTextureFromFile(_dev, texFilePath);
+		if (!texFileName.empty())
+		{
+			auto texFilePath = GetTexturePathFromModelAndTexPath(strModelPath, texFileName.c_str());
+			std::cout << "tex path=" << texFilePath << std::endl;
+			textureResources[i] = LoadTextureFromFile(_dev, texFilePath);
+		}
+		else textureResources[i] = nullptr;
+
+		if (!sphFileName.empty())
+		{
+			auto sphFilePath = GetTexturePathFromModelAndTexPath(strModelPath, sphFileName.c_str());
+			std::cout << "sph path=" << sphFilePath << std::endl;
+			sphResources[i] = LoadTextureFromFile(_dev, sphFilePath);
+		}
+		else sphResources[i] = nullptr;
 	}
 
 	// matrix
@@ -644,15 +678,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	mapMatrix->world = worldMat;
 	mapMatrix->viewProj = viewMat * projMat;
 
-#if false
-	// shader resource view
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Format = metadata.format;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
-#endif
-
 	ID3D12DescriptorHeap* basicDescHeap = nullptr;
 	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
 	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
@@ -663,15 +688,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	printf("CreateDescriptorHeap res=%d\n", hresult);
 
 	auto basicHeapHandle = basicDescHeap->GetCPUDescriptorHandleForHeapStart();
-#if false
-	_dev->CreateShaderResourceView(
-		texBuff,
-		&srvDesc,
-		basicHeapHandle
-	);
-	// 定数バッファの先頭までインクリメント
-	basicHeapHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-#endif
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
 	cbvDesc.BufferLocation = constBuff->GetGPUVirtualAddress();
 	cbvDesc.SizeInBytes = constBuff->GetDesc().Width;
@@ -712,7 +728,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	D3D12_DESCRIPTOR_HEAP_DESC matDescHeapDesc = {};
 	matDescHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	matDescHeapDesc.NodeMask = 0;
-	matDescHeapDesc.NumDescriptors = materials.size() * 2;
+	matDescHeapDesc.NumDescriptors = materials.size() * 3;
 	matDescHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	hresult = _dev->CreateDescriptorHeap(&matDescHeapDesc, IID_PPV_ARGS(&materialDescHeap));
 
@@ -731,17 +747,27 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 		if (textureResources[i] == nullptr)
 		{
+			// テクスチャ指定なしは白テクスチャ
 			srvDesc.Format = whiteTex->GetDesc().Format;
 			_dev->CreateShaderResourceView(whiteTex, &srvDesc, matDescHeapHandle);
 		}
 		else
 		{
 			srvDesc.Format = textureResources[i]->GetDesc().Format;
-			_dev->CreateShaderResourceView(
-				textureResources[i],
-				&srvDesc,
-				matDescHeapHandle
-			);
+			_dev->CreateShaderResourceView(textureResources[i], &srvDesc, matDescHeapHandle);
+		}
+		matDescHeapHandle.ptr += incSize;
+
+		if (sphResources[i] == nullptr)
+		{
+			// 乗算スフィア指定なしは白テクスチャ
+			srvDesc.Format = whiteTex->GetDesc().Format;
+			_dev->CreateShaderResourceView(whiteTex, &srvDesc, matDescHeapHandle);
+		}
+		else
+		{
+			srvDesc.Format = sphResources[i]->GetDesc().Format;
+			_dev->CreateShaderResourceView(sphResources[i], &srvDesc, matDescHeapHandle);
 		}
 		matDescHeapHandle.ptr += incSize;
 	}
@@ -801,7 +827,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		},
 	};
 
-	D3D12_DESCRIPTOR_RANGE descTblRange[3] = {}; // テクスチャと定数バッファ
+	D3D12_DESCRIPTOR_RANGE descTblRange[3] = {}; // 定数バッファとテクスチャ
 	// matrix
 	descTblRange[0].NumDescriptors = 1;
 	descTblRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
@@ -813,7 +839,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	descTblRange[1].BaseShaderRegister = 1;
 	descTblRange[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 	// texture
-	descTblRange[2].NumDescriptors = 1;
+	descTblRange[2].NumDescriptors = 2; // 通常テクスチャとsph
 	descTblRange[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	descTblRange[2].BaseShaderRegister = 0;
 	descTblRange[2].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
@@ -979,7 +1005,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		_cmdList->IASetIndexBuffer(&ibView);
 
 		auto materialHandle = materialDescHeap->GetGPUDescriptorHandleForHeapStart();
-		auto cbvsrvIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * 2; // cbvとsrv
+		auto cbvsrvIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * 3; // cbvとsrv
 		unsigned int idxOffset = 0;
 		for (auto& m : materials)
 		{
