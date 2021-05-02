@@ -1,8 +1,11 @@
 struct Output
 {
 	float4 svpos : SV_POSITION;
-	float4 normal : NORMAL;
+	float4 pos : POSITION;
+	float4 normal : NORMAL0;
+	float4 vnormal : NORMAL1; // ビュー変換
 	float2 uv : TEXCOORD;
+	float3 ray : VECTOR;
 };
 
 Texture2D<float4> tex : register(t0);
@@ -12,7 +15,9 @@ SamplerState smp : register(s0);
 cbuffer cbuff0 : register(b0)
 {
 	matrix world; // ワールド変換行列
-	matrix viewProj; // ビュープロジェクション行列
+	matrix view; // ビュー行列
+	matrix proj; // プロジェクション行列
+	float3 eye; // カメラ座標
 };
 cbuffer Material : register(b1)
 {

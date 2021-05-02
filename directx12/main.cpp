@@ -31,10 +31,12 @@ struct TexRGBA
 	unsigned char r, g, b, a;
 };
 
-struct MatricesData
+struct SceneMatrix
 {
 	DirectX::XMMATRIX world;
-	DirectX::XMMATRIX viewProj;
+	DirectX::XMMATRIX view;
+	DirectX::XMMATRIX proj;
+	DirectX::XMFLOAT3 eye;
 };
 
 struct PMDMaterialForHlsl
@@ -720,7 +722,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// 定数バッファ作成
 	ID3D12Resource* constBuff = nullptr;
 	auto matHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-	auto matResourceDesc = CD3DX12_RESOURCE_DESC::Buffer((sizeof(MatricesData) + 0xff & ~0xff));
+	auto matResourceDesc = CD3DX12_RESOURCE_DESC::Buffer((sizeof(SceneMatrix) + 0xff & ~0xff));
 	_dev->CreateCommittedResource(
 		&matHeapProp,
 		D3D12_HEAP_FLAG_NONE,
@@ -729,10 +731,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		nullptr,
 		IID_PPV_ARGS(&constBuff)
 	);
-	MatricesData* mapMatrix;
+	SceneMatrix* mapMatrix;
 	hresult = constBuff->Map(0, nullptr, (void**)&mapMatrix);
 	mapMatrix->world = worldMat;
-	mapMatrix->viewProj = viewMat * projMat;
+	mapMatrix->view = viewMat;
+	mapMatrix->proj = projMat;
+	mapMatrix->eye = eye;
 
 	ID3D12DescriptorHeap* basicDescHeap = nullptr;
 	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
