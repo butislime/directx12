@@ -7,6 +7,7 @@
 #include <d3dx12.h>
 
 #include <vector>
+#include <map>
 #include <algorithm>
 
 #include "header/pmd.h"
@@ -62,16 +63,16 @@ struct Material
 	AdditionalMaterial additional;
 };
 
+using LoadLambda_t = std::function<HRESULT(const std::wstring& path, DirectX::TexMetadata*, DirectX::ScratchImage&)>;
+std::map<std::string, LoadLambda_t> loadLambdaTable;
+
 ID3D12Resource* LoadTextureFromFile(ID3D12Device* device, std::string& texPath)
 {
+	auto wtexpath = GetWideStringFromString(texPath);
+	auto ext = GetExtension(texPath);
 	DirectX::TexMetadata metadata = {};
 	DirectX::ScratchImage scratchImg = {};
-	auto hresult = DirectX::LoadFromWICFile(
-		GetWideStringFromString(texPath).c_str(),
-		DirectX::WIC_FLAGS_NONE,
-		&metadata,
-		scratchImg
-	);
+	auto hresult = loadLambdaTable[ext](wtexpath, &metadata, scratchImg);
 
 	if (FAILED(hresult))
 	{
@@ -302,6 +303,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// デバッグレイヤーの有効化
 	EnableDebugLayer();
 #endif
+
+	loadLambdaTable["sph"] = loadLambdaTable["spa"] = loadLambdaTable["bmp"] = loadLambdaTable["png"] = loadLambdaTable["spg"] =
+		[](const std::wstring& path, DirectX::TexMetadata* meta, DirectX::ScratchImage& img) -> HRESULT
+	{
+		return DirectX::LoadFromWICFile(path.c_str(), DirectX::WIC_FLAGS_NONE, meta, img);
+	};
+	loadLambdaTable["tga"] = 
+		[](const std::wstring& path, DirectX::TexMetadata* meta, DirectX::ScratchImage& img) -> HRESULT
+	{
+		return DirectX::LoadFromTGAFile(path.c_str(), meta, img);
+	};
+	loadLambdaTable["dds"] = 
+		[](const std::wstring& path, DirectX::TexMetadata* meta, DirectX::ScratchImage& img) -> HRESULT
+	{
+		return DirectX::LoadFromDDSFile(path.c_str(), DirectX::DDS_FLAGS_NONE, meta, img);
+	};
 
 	std::string strModelPath = "model/巡音ルカ.pmd";
 	auto pmd = LoadPMD(strModelPath);
