@@ -6,6 +6,7 @@ float4 BasicPS(Output input) : SV_TARGET
 
 	float3 light = normalize(float3(1, -1, 1));
 	float brightness = dot(-light, input.normal.xyz);
+	float4 toonDif = toon.Sample(smpToon, float2(0, 1.0 - brightness));
 
 	float3 refLight = normalize(reflect(light, input.normal.xyz));
 	float specularB = pow(saturate(dot(refLight, -input.ray)), specular.a);
@@ -13,7 +14,7 @@ float4 BasicPS(Output input) : SV_TARGET
 	float2 sphereMapUV = input.vnormal.xy;
 	sphereMapUV = (sphereMapUV + float2(1, -1)) * float2(0.5, -0.5);
 
-	return max(diffuse * brightness * color
+	return max(diffuse * toonDif * color
 		* sph.Sample(smp, sphereMapUV)
 		+ spa.Sample(smp, sphereMapUV) * color
 		+ float4(specularB * specular.rgb, 1)

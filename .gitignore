@@ -1,4 +1,4 @@
-*.sln
+j*.sln
 .vs
 Debug
 
@@ -7,3 +7,4 @@ Debug
 *.vcxproj.user
 
 directx12/model
+directx12/toon
