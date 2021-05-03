@@ -90,7 +90,7 @@ ID3D12Resource* LoadTextureFromFile(ID3D12Device* device, std::string& texPath)
 
 	auto img = scratchImg.GetImage(0, 0, 0);
 
-	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L1);
+	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L0);
 	auto resDesc = CD3DX12_RESOURCE_DESC::Tex2D(metadata.format, metadata.width, metadata.height, metadata.arraySize, metadata.mipLevels);
 
 	ID3D12Resource* texBuff = nullptr;
@@ -127,8 +127,8 @@ ID3D12Resource* LoadTextureFromFile(ID3D12Device* device, std::string& texPath)
 
 ID3D12Resource* CreateWhiteTexture(ID3D12Device* device)
 {
-	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L1);
-	auto resDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 4/*width*/, 256/*height*/);
+	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L0);
+	auto resDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 4/*width*/, 4/*height*/);
 
 	ID3D12Resource* whiteBuff = nullptr;
 	auto hresult = device->CreateCommittedResource(
@@ -160,7 +160,7 @@ ID3D12Resource* CreateWhiteTexture(ID3D12Device* device)
 
 ID3D12Resource* CreateBlackTexture(ID3D12Device* device)
 {
-	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L1);
+	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L0);
 	auto resDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 4/*width*/, 4/*height*/);
 
 	ID3D12Resource* blackBuff = nullptr;
@@ -193,7 +193,7 @@ ID3D12Resource* CreateBlackTexture(ID3D12Device* device)
 
 ID3D12Resource* CreateGrayGradationTexture(ID3D12Device* device)
 {
-	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L1);
+	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L0);
 	auto resDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 4/*width*/, 256/*height*/);
 
 	ID3D12Resource* gradBuff = nullptr;
@@ -225,7 +225,7 @@ ID3D12Resource* CreateGrayGradationTexture(ID3D12Device* device)
 		0, nullptr,
 		data.data(),
 		4 * sizeof(unsigned int),
-		data.size()
+		sizeof(unsigned int) * static_cast<UINT>(data.size())
 	);
 
 	return gradBuff;
@@ -951,7 +951,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	CD3DX12_ROOT_PARAMETER rootparams[2] = {};
 	rootparams[0].InitAsDescriptorTable(1, &descTblRange[0]);
-	rootparams[0].InitAsDescriptorTable(2, &descTblRange[1]);
+	rootparams[1].InitAsDescriptorTable(2, &descTblRange[1]);
 
 	CD3DX12_STATIC_SAMPLER_DESC samplerDescs[2] = {};
 	samplerDescs[0].Init(0/*register*/);
