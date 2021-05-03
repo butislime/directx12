@@ -1,6 +1,7 @@
 *.sln
 .vs
 Debug
+Release
 
 *.vcxproj
 *.vcxproj.filters
