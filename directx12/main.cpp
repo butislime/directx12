@@ -5,6 +5,7 @@
 #include <d3dcompiler.h>
 #include <DirectXTex.h>
 #include <d3dx12.h>
+#include <wrl.h>
 
 #include <vector>
 #include <map>
@@ -89,24 +90,8 @@ ID3D12Resource* LoadTextureFromFile(ID3D12Device* device, std::string& texPath)
 
 	auto img = scratchImg.GetImage(0, 0, 0);
 
-	D3D12_HEAP_PROPERTIES texHeapProp = {};
-	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
-	texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;
-	texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;
-	texHeapProp.CreationNodeMask = 0;
-	texHeapProp.VisibleNodeMask = 0;
-
-	D3D12_RESOURCE_DESC resDesc = {};
-	resDesc.Format = metadata.format;
-	resDesc.Width = metadata.width;
-	resDesc.Height = metadata.height;
-	resDesc.DepthOrArraySize = metadata.arraySize;
-	resDesc.SampleDesc.Count = 1; // アンチエイリアシングなし
-	resDesc.SampleDesc.Quality = 0;
-	resDesc.MipLevels = metadata.mipLevels;
-	resDesc.Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(metadata.dimension);
-	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L1);
+	auto resDesc = CD3DX12_RESOURCE_DESC::Tex2D(metadata.format, metadata.width, metadata.height, metadata.arraySize, metadata.mipLevels);
 
 	ID3D12Resource* texBuff = nullptr;
 	hresult = device->CreateCommittedResource(
@@ -142,23 +127,8 @@ ID3D12Resource* LoadTextureFromFile(ID3D12Device* device, std::string& texPath)
 
 ID3D12Resource* CreateWhiteTexture(ID3D12Device* device)
 {
-	D3D12_HEAP_PROPERTIES texHeapProp = {};
-	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
-	texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;
-	texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;
-	texHeapProp.VisibleNodeMask = 0;
-
-	D3D12_RESOURCE_DESC resDesc = {};
-	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	resDesc.Width = 4;
-	resDesc.Height = 4;
-	resDesc.DepthOrArraySize = 1;
-	resDesc.SampleDesc.Count = 1;
-	resDesc.SampleDesc.Quality = 0;
-	resDesc.MipLevels = 1;
-	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L1);
+	auto resDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 4/*width*/, 256/*height*/);
 
 	ID3D12Resource* whiteBuff = nullptr;
 	auto hresult = device->CreateCommittedResource(
@@ -190,23 +160,8 @@ ID3D12Resource* CreateWhiteTexture(ID3D12Device* device)
 
 ID3D12Resource* CreateBlackTexture(ID3D12Device* device)
 {
-	D3D12_HEAP_PROPERTIES texHeapProp = {};
-	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
-	texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;
-	texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;
-	texHeapProp.VisibleNodeMask = 0;
-
-	D3D12_RESOURCE_DESC resDesc = {};
-	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	resDesc.Width = 4;
-	resDesc.Height = 4;
-	resDesc.DepthOrArraySize = 1;
-	resDesc.SampleDesc.Count = 1;
-	resDesc.SampleDesc.Quality = 0;
-	resDesc.MipLevels = 1;
-	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L1);
+	auto resDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 4/*width*/, 4/*height*/);
 
 	ID3D12Resource* blackBuff = nullptr;
 	auto hresult = device->CreateCommittedResource(
@@ -238,23 +193,8 @@ ID3D12Resource* CreateBlackTexture(ID3D12Device* device)
 
 ID3D12Resource* CreateGrayGradationTexture(ID3D12Device* device)
 {
-	D3D12_HEAP_PROPERTIES texHeapProp = {};
-	texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
-	texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;
-	texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;
-	texHeapProp.VisibleNodeMask = 0;
-
-	D3D12_RESOURCE_DESC resDesc = {};
-	resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	resDesc.Width = 4;
-	resDesc.Height = 256;
-	resDesc.DepthOrArraySize = 1;
-	resDesc.SampleDesc.Count = 1;
-	resDesc.SampleDesc.Quality = 0;
-	resDesc.MipLevels = 1;
-	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L1);
+	auto resDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 4/*width*/, 256/*height*/);
 
 	ID3D12Resource* gradBuff = nullptr;
 	auto hresult = device->CreateCommittedResource(
@@ -1000,56 +940,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		},
 	};
 
-	D3D12_DESCRIPTOR_RANGE descTblRange[3] = {}; // 定数バッファとテクスチャ
+	CD3DX12_DESCRIPTOR_RANGE descTblRange[3] = {}; // 定数バッファとテクスチャ
 	// matrix
-	descTblRange[0].NumDescriptors = 1;
-	descTblRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-	descTblRange[0].BaseShaderRegister = 0;
-	descTblRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+	descTblRange[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1/*num*/, 0/*register*/);
 	// material
-	descTblRange[1].NumDescriptors = 1;
-	descTblRange[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-	descTblRange[1].BaseShaderRegister = 1;
-	descTblRange[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+	descTblRange[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1/*num*/, 1/*register*/);
 	// texture
-	descTblRange[2].NumDescriptors = 4; // 通常テクスチャとsphとspaとtoon
-	descTblRange[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	descTblRange[2].BaseShaderRegister = 0;
-	descTblRange[2].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+	// 通常テクスチャとsphとspaとtoon
+	descTblRange[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4/*num*/, 0/*register*/);
 
-	D3D12_ROOT_PARAMETER rootparams[2] = {};
-	rootparams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	rootparams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-	rootparams[0].DescriptorTable.pDescriptorRanges = &descTblRange[0];
-	rootparams[0].DescriptorTable.NumDescriptorRanges = 1;
+	CD3DX12_ROOT_PARAMETER rootparams[2] = {};
+	rootparams[0].InitAsDescriptorTable(1, &descTblRange[0]);
+	rootparams[0].InitAsDescriptorTable(2, &descTblRange[1]);
 
-	rootparams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	rootparams[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-	rootparams[1].DescriptorTable.pDescriptorRanges = &descTblRange[1];
-	rootparams[1].DescriptorTable.NumDescriptorRanges = 2;
-
-	D3D12_STATIC_SAMPLER_DESC samplerDescs[2] = {};
-	samplerDescs[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP; // u方向繰り返し
-	samplerDescs[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP; // v方向繰り返し
-	samplerDescs[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP; // w方向繰り返し
-	samplerDescs[0].BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
-	samplerDescs[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-	samplerDescs[0].MaxLOD = D3D12_FLOAT32_MAX;
-	samplerDescs[0].MinLOD = 0.0f;
-	samplerDescs[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-	samplerDescs[0].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-	samplerDescs[0].ShaderRegister = 0;
-
-	samplerDescs[1].AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP; // u方向繰り返しなし
-	samplerDescs[1].AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP; // v方向繰り返しなし
-	samplerDescs[1].AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP; // w方向繰り返しなし
-	samplerDescs[1].BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
-	samplerDescs[1].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-	samplerDescs[1].MaxLOD = D3D12_FLOAT32_MAX;
-	samplerDescs[1].MinLOD = 0.0f;
-	samplerDescs[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-	samplerDescs[1].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-	samplerDescs[0].ShaderRegister = 1;
+	CD3DX12_STATIC_SAMPLER_DESC samplerDescs[2] = {};
+	samplerDescs[0].Init(0/*register*/);
+	samplerDescs[1].Init(1/*register*/, D3D12_FILTER_ANISOTROPIC, D3D12_TEXTURE_ADDRESS_MODE_CLAMP, D3D12_TEXTURE_ADDRESS_MODE_CLAMP);
 
 	// ルートシグネチャの作成
 	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
@@ -1080,19 +986,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// グラフィックパイプラインの作成
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipeline = {};
 	gpipeline.pRootSignature = rootsignature;
-	gpipeline.VS.pShaderBytecode = vsBlob->GetBufferPointer();
-	gpipeline.VS.BytecodeLength = vsBlob->GetBufferSize();
-	gpipeline.PS.pShaderBytecode = psBlob->GetBufferPointer();
-	gpipeline.PS.BytecodeLength = psBlob->GetBufferSize();
+	gpipeline.VS = CD3DX12_SHADER_BYTECODE(vsBlob);
+	gpipeline.PS = CD3DX12_SHADER_BYTECODE(psBlob);
 	// デフォルトのサンプルマスク
 	gpipeline.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
-	gpipeline.RasterizerState.MultisampleEnable = false;
-	gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-	gpipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-	gpipeline.RasterizerState.DepthClipEnable = true;
+	gpipeline.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE; // mmdに合わせてカリングオフ
 
-	gpipeline.BlendState.AlphaToCoverageEnable = false;
-	gpipeline.BlendState.IndependentBlendEnable = false;
+	gpipeline.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 
 	D3D12_RENDER_TARGET_BLEND_DESC renderTargetBlendDesc = {};
 	renderTargetBlendDesc.BlendEnable = false;
@@ -1125,13 +1026,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	printf("CreateGraphicsPipelineState res=%d E_INVALIDARG=%d\n", hresult, E_INVALIDARG);
 
 	// viewport設定
-	D3D12_VIEWPORT viewport = {};
-	viewport.Width = WINDOW_WIDTH;
-	viewport.Height = WINDOW_HEIGHT;
-	viewport.TopLeftX = 0;
-	viewport.TopLeftY = 0;
-	viewport.MaxDepth = 1.0f;
-	viewport.MinDepth = 0.0f;
+	// default
+	CD3DX12_VIEWPORT viewport(_backBuffers[0]);
 
 	// シザー矩形
 	D3D12_RECT scissorrect = {};
