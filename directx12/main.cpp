@@ -7,6 +7,7 @@
 #include <d3dx12.h>
 #include <wrl.h>
 
+#include <iostream>
 #include <vector>
 #include <map>
 #include <algorithm>
@@ -18,9 +19,7 @@
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "DirectXTex.lib")
 
-#ifdef _DEBUG
-#include <iostream>
-#endif
+using namespace Microsoft::WRL;
 
 struct Vertex
 {
@@ -339,15 +338,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	}
 
 	// directx12 initialize
-	ID3D12Device* _dev = nullptr;
-	IDXGIFactory6* _dxgiFactory = nullptr;
-	IDXGISwapChain4* _swapchain = nullptr;
+	ComPtr<ID3D12Device> _dev = nullptr;
+	ComPtr<IDXGIFactory6> _dxgiFactory = nullptr;
+	ComPtr<IDXGISwapChain4> _swapchain = nullptr;
 
-	//#ifdef _DEBUG
-		//hresult = CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&_dxgiFactory));
-	//#else
-	auto hresult = CreateDXGIFactory1(IID_PPV_ARGS(&_dxgiFactory));
-	//#endif
+	auto hresult = CreateDXGIFactory1(IID_PPV_ARGS(_dxgiFactory.ReleaseAndGetAddressOf()));
 	std::vector<IDXGIAdapter*> adapters;
 	IDXGIAdapter* tmpAdapter = nullptr;
 	for (int i = 0; _dxgiFactory->EnumAdapters(i, &tmpAdapter) != DXGI_ERROR_NOT_FOUND; ++i)
@@ -376,7 +371,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	D3D_FEATURE_LEVEL featureLevel;
 	for (auto level : levels)
 	{
-		if (SUCCEEDED(D3D12CreateDevice(tmpAdapter, level, IID_PPV_ARGS(&_dev))))
+		if (SUCCEEDED(D3D12CreateDevice(tmpAdapter, level, IID_PPV_ARGS(_dev.ReleaseAndGetAddressOf()))))
 		{
 			featureLevel = level;
 			break;
@@ -421,7 +416,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		&swapchainDesc,
 		nullptr,
 		nullptr,
-		(IDXGISwapChain1**)&_swapchain);
+		(IDXGISwapChain1**)_swapchain.ReleaseAndGetAddressOf());
 
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV; // レンダーターゲットビュー
@@ -659,7 +654,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		char toonFileName[16];
 		sprintf_s(toonFileName, "toon%02d.bmp", pmd.materials[i].toonIdx + 1);
 		toonFilePath += toonFileName;
-		toonResources[i] = LoadTextureFromFile(_dev, toonFilePath);
+		toonResources[i] = LoadTextureFromFile(_dev.Get(), toonFilePath);
 
 		std::string fileName = pmd.materials[i].texFilePath;
 		std::string texFileName = std::string();
@@ -702,7 +697,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		{
 			auto texFilePath = GetTexturePathFromModelAndTexPath(strModelPath, texFileName.c_str());
 			std::cout << "tex path=" << texFilePath << std::endl;
-			textureResources[i] = LoadTextureFromFile(_dev, texFilePath);
+			textureResources[i] = LoadTextureFromFile(_dev.Get(), texFilePath);
 		}
 		else textureResources[i] = nullptr;
 
@@ -710,7 +705,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		{
 			auto sphFilePath = GetTexturePathFromModelAndTexPath(strModelPath, sphFileName.c_str());
 			std::cout << "sph path=" << sphFilePath << std::endl;
-			sphResources[i] = LoadTextureFromFile(_dev, sphFilePath);
+			sphResources[i] = LoadTextureFromFile(_dev.Get(), sphFilePath);
 		}
 		else sphResources[i] = nullptr;
 
@@ -718,7 +713,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		{
 			auto spaFilePath = GetTexturePathFromModelAndTexPath(strModelPath, spaFileName.c_str());
 			std::cout << "spa path=" << spaFilePath << std::endl;
-			spaResources[i] = LoadTextureFromFile(_dev, spaFilePath);
+			spaResources[i] = LoadTextureFromFile(_dev.Get(), spaFilePath);
 		}
 		else spaResources[i] = nullptr;
 	}
@@ -823,9 +818,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	auto matDescHeapHandle = materialDescHeap->GetCPUDescriptorHandleForHeapStart();
 	auto incSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	auto whiteTex = CreateWhiteTexture(_dev);
-	auto blackTex = CreateBlackTexture(_dev);
-	auto gradTex = CreateGrayGradationTexture(_dev);
+	auto whiteTex = CreateWhiteTexture(_dev.Get());
+	auto blackTex = CreateBlackTexture(_dev.Get());
+	auto gradTex = CreateGrayGradationTexture(_dev.Get());
 	for (int i = 0; i < materials.size(); ++i)
 	{
 		_dev->CreateConstantBufferView(&matCBVDesc, matDescHeapHandle);
