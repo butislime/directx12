@@ -1,3 +1,5 @@
+#pragma once
+
 #include <string>
 #include <vector>
 #include <DirectXMath.h>
@@ -37,6 +39,7 @@ struct PMDMaterial
 
 struct PMD
 {
+	std::string filePath;
 	PMDHeader header;
 	//std::vector<PMDVertex> vertices;
 	unsigned int vertNum;

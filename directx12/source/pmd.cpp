@@ -68,6 +68,7 @@ PMD LoadPMD(const std::string& path)
 	fopen_s(&fp, path.c_str(), "rb");
 
 	PMD pmd;
+	pmd.filePath = path;
 
 	// header
 	fread(signature, sizeof(signature), 1, fp);
