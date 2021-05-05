@@ -42,7 +42,9 @@ void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
 		auto parent_name = bone_names[pb.parentNo];
 		boneNodeTable[parent_name].children.emplace_back(&boneNodeTable[pb.boneName]);
 	}
-	std::fill(boneMatrices.begin(), boneMatrices.end(), DirectX::XMMatrixIdentity());
+	static unsigned short BoneMax = 256;
+	transform.boneMatrices.resize(BoneMax);
+	std::fill(transform.boneMatrices.begin(), transform.boneMatrices.end(), DirectX::XMMatrixIdentity());
 
 	// 頂点バッファの作成
 	ID3D12Resource* vertBuff = nullptr;
@@ -286,37 +288,69 @@ void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
 	);
 	DirectX::XMMATRIX matrix = worldMat * viewMat * projMat;
 	// 定数バッファ作成
-	ID3D12Resource* constBuff = nullptr;
-	auto matHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-	auto matResourceDesc = CD3DX12_RESOURCE_DESC::Buffer((sizeof(SceneMatrix) + 0xff & ~0xff));
-	device->CreateCommittedResource(
-		&matHeapProp,
-		D3D12_HEAP_FLAG_NONE,
-		&matResourceDesc,
-		D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr,
-		IID_PPV_ARGS(&constBuff)
-	);
-	SceneMatrix* mapMatrix;
-	hresult = constBuff->Map(0, nullptr, (void**)&mapMatrix);
-	mapMatrix->world = worldMat;
-	mapMatrix->view = viewMat;
-	mapMatrix->proj = projMat;
-	mapMatrix->eye = eye;
+	{
+		ID3D12Resource* scene_mat_buff = nullptr;
+		auto matHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+		auto matResourceDesc = CD3DX12_RESOURCE_DESC::Buffer((sizeof(SceneMatrix) + 0xff & ~0xff));
+		device->CreateCommittedResource(
+			&matHeapProp,
+			D3D12_HEAP_FLAG_NONE,
+			&matResourceDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&scene_mat_buff)
+		);
+		SceneMatrix* scene_matrix;
+		hresult = scene_mat_buff->Map(0, nullptr, (void**)&scene_matrix);
+		scene_matrix->view = viewMat;
+		scene_matrix->proj = projMat;
+		scene_matrix->eye = eye;
 
-	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
-	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	descHeapDesc.NodeMask = 0;
-	descHeapDesc.NumDescriptors = 1; // cbv
-	descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	hresult = device->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(basicDescHeap.ReleaseAndGetAddressOf()));
-	std::cout << "CreateDescriptorHeap res=" << hresult << std::endl;
+		D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
+		descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		descHeapDesc.NodeMask = 0;
+		descHeapDesc.NumDescriptors = 1; // cbv
+		descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		hresult = device->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(basicDescHeap.ReleaseAndGetAddressOf()));
+		std::cout << "CreateDescriptorHeap res=" << hresult << std::endl;
 
-	auto basicHeapHandle = basicDescHeap->GetCPUDescriptorHandleForHeapStart();
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-	cbvDesc.BufferLocation = constBuff->GetGPUVirtualAddress();
-	cbvDesc.SizeInBytes = constBuff->GetDesc().Width;
-	device->CreateConstantBufferView(&cbvDesc, basicHeapHandle);
+		auto basicHeapHandle = basicDescHeap->GetCPUDescriptorHandleForHeapStart();
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+		cbvDesc.BufferLocation = scene_mat_buff->GetGPUVirtualAddress();
+		cbvDesc.SizeInBytes = scene_mat_buff->GetDesc().Width;
+		device->CreateConstantBufferView(&cbvDesc, basicHeapHandle);
+	}
+	{
+		ID3D12Resource* transform_buff = nullptr;
+		auto matHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+		auto matResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(Transform::CalcAlignmentedSize(transform));
+		device->CreateCommittedResource(
+			&matHeapProp,
+			D3D12_HEAP_FLAG_NONE,
+			&matResourceDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&transform_buff)
+		);
+		Transform* transform_matrices;
+		hresult = transform_buff->Map(0, nullptr, (void**)&transform_matrices);
+		transform_matrices->world = worldMat;
+		transform_matrices->boneMatrices = transform.boneMatrices;
+
+		D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
+		descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		descHeapDesc.NodeMask = 0;
+		descHeapDesc.NumDescriptors = 1; // cbv
+		descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		hresult = device->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(transformDescHeap.ReleaseAndGetAddressOf()));
+		std::cout << "CreateDescriptorHeap res=" << hresult << std::endl;
+
+		auto basicHeapHandle = transformDescHeap->GetCPUDescriptorHandleForHeapStart();
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+		cbvDesc.BufferLocation = transform_buff->GetGPUVirtualAddress();
+		cbvDesc.SizeInBytes = transform_buff->GetDesc().Width;
+		device->CreateConstantBufferView(&cbvDesc, basicHeapHandle);
+	}
 
 	// material
 	auto materialBuffSize = sizeof(PMDMaterialForHlsl);
@@ -481,18 +515,21 @@ void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
 		},
 	};
 
-	CD3DX12_DESCRIPTOR_RANGE descTblRange[3] = {}; // 定数バッファとテクスチャ
+	CD3DX12_DESCRIPTOR_RANGE descTblRange[4] = {}; // 定数バッファとテクスチャ
 	// matrix
 	descTblRange[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1/*num*/, 0/*register*/);
-	// material
+	// transform
 	descTblRange[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1/*num*/, 1/*register*/);
+	// material
+	descTblRange[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1/*num*/, 2/*register*/);
 	// texture
 	// 通常テクスチャとsphとspaとtoon
-	descTblRange[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4/*num*/, 0/*register*/);
+	descTblRange[3].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 4/*num*/, 0/*register*/);
 
-	CD3DX12_ROOT_PARAMETER rootparams[2] = {};
+	CD3DX12_ROOT_PARAMETER rootparams[3] = {};
 	rootparams[0].InitAsDescriptorTable(1, &descTblRange[0]);
-	rootparams[1].InitAsDescriptorTable(2, &descTblRange[1]);
+	rootparams[1].InitAsDescriptorTable(1, &descTblRange[1]);
+	rootparams[2].InitAsDescriptorTable(2, &descTblRange[2]);
 
 	CD3DX12_STATIC_SAMPLER_DESC samplerDescs[2] = {};
 	samplerDescs[0].Init(0/*register*/);
@@ -502,7 +539,7 @@ void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
 	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
 	rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 	rootSignatureDesc.pParameters = rootparams;
-	rootSignatureDesc.NumParameters = 2;
+	rootSignatureDesc.NumParameters = 3;
 	rootSignatureDesc.pStaticSamplers = samplerDescs;
 	rootSignatureDesc.NumStaticSamplers = 2;
 
@@ -572,6 +609,10 @@ void PMDRenderer::Render(ms::ComPtr<ID3D12Device> device, ms::ComPtr<ID3D12Graph
 	cmdList->SetDescriptorHeaps(1, basic_heaps);
 	cmdList->SetGraphicsRootDescriptorTable(0, basicDescHeap->GetGPUDescriptorHandleForHeapStart());
 
+	ID3D12DescriptorHeap* transform_heaps[] = { transformDescHeap.Get() };
+	cmdList->SetDescriptorHeaps(1, transform_heaps);
+	cmdList->SetGraphicsRootDescriptorTable(1, transformDescHeap->GetGPUDescriptorHandleForHeapStart());
+
 	ID3D12DescriptorHeap* material_heaps[] = { materialDescHeap.Get() };
 	cmdList->SetDescriptorHeaps(1, material_heaps);
 
@@ -584,7 +625,7 @@ void PMDRenderer::Render(ms::ComPtr<ID3D12Device> device, ms::ComPtr<ID3D12Graph
 	unsigned int idxOffset = 0;
 	for (auto& m : materials)
 	{
-		cmdList->SetGraphicsRootDescriptorTable(1, materialHandle);
+		cmdList->SetGraphicsRootDescriptorTable(2, materialHandle);
 		cmdList->DrawIndexedInstanced(m.indicesNum, 1, idxOffset, 0, 0);
 		materialHandle.ptr += cbvsrvIncSize;
 		idxOffset += m.indicesNum;

@@ -16,12 +16,16 @@ SamplerState smp : register(s0);
 SamplerState smpToon : register(s1);
 cbuffer cbuff0 : register(b0)
 {
-	matrix world; // ワールド変換行列
 	matrix view; // ビュー行列
 	matrix proj; // プロジェクション行列
 	float3 eye; // カメラ座標
 };
-cbuffer Material : register(b1)
+cbuffer Transform : register(b1)
+{
+	matrix world; // ワールド変換行列
+	matrix bones[256];
+};
+cbuffer Material : register(b2)
 {
 	float4 diffuse; // a=alpha
 	float4 specular; // a=specularity

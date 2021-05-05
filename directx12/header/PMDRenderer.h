@@ -34,7 +34,6 @@ struct Material
 
 struct SceneMatrix
 {
-	DirectX::XMMATRIX world;
 	DirectX::XMMATRIX view;
 	DirectX::XMMATRIX proj;
 	DirectX::XMFLOAT3 eye;
@@ -50,6 +49,17 @@ struct BoneNode
 	std::vector<BoneNode*> children;
 };
 
+struct Transform
+{
+	DirectX::XMMATRIX world;
+	std::vector<DirectX::XMMATRIX> boneMatrices;
+	static unsigned int CalcAlignmentedSize(const Transform& transform)
+	{
+		unsigned int size = sizeof(DirectX::XMMATRIX) + sizeof(DirectX::XMMATRIX) * transform.boneMatrices.size();
+		return size + 0xff & ~0xff;
+	}
+};
+
 class PMDRenderer
 {
 public:
@@ -62,13 +72,14 @@ private:
 	ms::ComPtr<ID3D12RootSignature> rootSignature = nullptr;
 	ms::ComPtr<ID3D12PipelineState> pipelineState = nullptr;
 	ms::ComPtr<ID3D12DescriptorHeap> basicDescHeap = nullptr;
+	ms::ComPtr<ID3D12DescriptorHeap> transformDescHeap = nullptr;
 	ms::ComPtr<ID3D12DescriptorHeap> materialDescHeap = nullptr;
 
 	D3D12_VERTEX_BUFFER_VIEW vbView = {};
 	D3D12_INDEX_BUFFER_VIEW ibView = {};
 
-	std::vector<Material> materials;
-	std::vector<DirectX::XMMATRIX> boneMatrices;
+	Transform transform;
 
+	std::vector<Material> materials;
 	std::map<std::string, BoneNode> boneNodeTable;
 };

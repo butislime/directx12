@@ -213,7 +213,7 @@ ID3D12Resource* Application::CreateGrayGradationTexture(ms::ComPtr<ID3D12Device>
 		return nullptr;
 	}
 
-	std::vector<unsigned char> data(4 * 256);
+	std::vector<unsigned int> data(4 * 256);
 	auto it = data.begin();
 	unsigned int c = 0xff;
 	for (; it != data.end(); it += 4)
@@ -226,8 +226,8 @@ ID3D12Resource* Application::CreateGrayGradationTexture(ms::ComPtr<ID3D12Device>
 	hresult = gradBuff->WriteToSubresource(
 		0, nullptr,
 		data.data(),
-		4 * 4,
-		data.size()
+		4 * sizeof(data[0]),
+		sizeof(data[0]) * data.size()
 	);
 
 	return gradBuff;
