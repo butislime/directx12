@@ -37,6 +37,18 @@ struct PMDMaterial
 };
 #pragma pack()
 
+#pragma pack(1)
+struct PMDBone
+{
+	char boneName[20];
+	unsigned short parentNo;
+	unsigned short nextNo;
+	unsigned char type;
+	unsigned short ikBoneNo;
+	DirectX::XMFLOAT3 pos;
+};
+#pragma pack()
+
 struct PMD
 {
 	std::string filePath;
@@ -46,6 +58,7 @@ struct PMD
 	std::vector<unsigned char> vertices;
 	std::vector<unsigned short> indices;
 	std::vector<PMDMaterial> materials;
+	std::vector<PMDBone> bones;
 };
 
 std::string GetTexturePathFromModelAndTexPath(const std::string& modelPath, const char* texPath);

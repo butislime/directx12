@@ -14,6 +14,7 @@ size_t AlignmentedSize(size_t size, size_t alignment)
 
 void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
 {
+	// material convert
 	materials.resize(pmd.materials.size());
 	for (int i = 0; i < pmd.materials.size(); ++i)
 	{
@@ -24,6 +25,24 @@ void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
 		materials[i].pmdmat4hlsl.specularity = pmd.materials[i].specularity;
 		materials[i].pmdmat4hlsl.ambient = pmd.materials[i].ambient;
 	}
+	// bone convert
+	std::vector<std::string> bone_names(pmd.bones.size());
+	for (int idx = 0; idx < pmd.bones.size(); ++idx)
+	{
+		auto& pb = pmd.bones[idx];
+		bone_names[idx] = pb.boneName;
+		auto& node = boneNodeTable[pb.boneName];
+		node.boneIdx = idx;
+		node.startPos = pb.pos;
+	}
+	for (auto& pb : pmd.bones)
+	{
+		if (pb.parentNo >= pmd.bones.size()) continue;
+
+		auto parent_name = bone_names[pb.parentNo];
+		boneNodeTable[parent_name].children.emplace_back(&boneNodeTable[pb.boneName]);
+	}
+	std::fill(boneMatrices.begin(), boneMatrices.end(), DirectX::XMMatrixIdentity());
 
 	// 頂点バッファの作成
 	ID3D12Resource* vertBuff = nullptr;

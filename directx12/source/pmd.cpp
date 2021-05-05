@@ -95,6 +95,12 @@ PMD LoadPMD(const std::string& path)
 	pmd.materials.resize(material_num);
 	fread(pmd.materials.data(), pmd.materials.size() * sizeof(PMDMaterial), 1, fp);
 
+	unsigned short bone_num= 0;
+	fread(&bone_num, sizeof(bone_num), 1, fp);
+	std::cout << "bone num:" << bone_num << std::endl;
+	pmd.bones.resize(bone_num);
+	fread(pmd.bones.data(), sizeof(PMDBone), bone_num, fp);
+
 	fclose(fp);
 
 	return pmd;

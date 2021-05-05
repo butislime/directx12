@@ -6,6 +6,7 @@
 
 // pmd
 #include <string>
+#include <map>
 #include <DirectXMath.h>
 
 struct PMDMaterialForHlsl
@@ -41,6 +42,14 @@ struct SceneMatrix
 
 namespace ms = Microsoft::WRL;
 
+struct BoneNode
+{
+	int boneIdx;
+	DirectX::XMFLOAT3 startPos;
+	DirectX::XMFLOAT3 endPos;
+	std::vector<BoneNode*> children;
+};
+
 class PMDRenderer
 {
 public:
@@ -59,4 +68,7 @@ private:
 	D3D12_INDEX_BUFFER_VIEW ibView = {};
 
 	std::vector<Material> materials;
+	std::vector<DirectX::XMMATRIX> boneMatrices;
+
+	std::map<std::string, BoneNode> boneNodeTable;
 };
