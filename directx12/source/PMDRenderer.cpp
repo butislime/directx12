@@ -12,112 +12,6 @@ size_t AlignmentedSize(size_t size, size_t alignment)
 	return size + alignment - size % alignment;
 }
 
-ID3D12Resource* CreateWhiteTexture(ID3D12Device* device)
-{
-	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L0);
-	auto resDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 4/*width*/, 4/*height*/);
-
-	ID3D12Resource* whiteBuff = nullptr;
-	auto hresult = device->CreateCommittedResource(
-		&texHeapProp,
-		D3D12_HEAP_FLAG_NONE,
-		&resDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		nullptr,
-		IID_PPV_ARGS(&whiteBuff)
-	);
-
-	if (FAILED(hresult))
-	{
-		return nullptr;
-	}
-
-	std::vector<unsigned char> data(4 * 4 * 4);
-	std::fill(data.begin(), data.end(), 0xff);
-
-	hresult = whiteBuff->WriteToSubresource(
-		0, nullptr,
-		data.data(),
-		4 * 4,
-		data.size()
-	);
-
-	return whiteBuff;
-}
-
-ID3D12Resource* CreateBlackTexture(ID3D12Device* device)
-{
-	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L0);
-	auto resDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 4/*width*/, 4/*height*/);
-
-	ID3D12Resource* blackBuff = nullptr;
-	auto hresult = device->CreateCommittedResource(
-		&texHeapProp,
-		D3D12_HEAP_FLAG_NONE,
-		&resDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		nullptr,
-		IID_PPV_ARGS(&blackBuff)
-	);
-
-	if (FAILED(hresult))
-	{
-		return nullptr;
-	}
-
-	std::vector<unsigned char> data(4 * 4 * 4);
-	std::fill(data.begin(), data.end(), 0x00);
-
-	hresult = blackBuff->WriteToSubresource(
-		0, nullptr,
-		data.data(),
-		4 * 4,
-		data.size()
-	);
-
-	return blackBuff;
-}
-
-ID3D12Resource* CreateGrayGradationTexture(ID3D12Device* device)
-{
-	auto texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L0);
-	auto resDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM, 4/*width*/, 256/*height*/);
-
-	ID3D12Resource* gradBuff = nullptr;
-	auto hresult = device->CreateCommittedResource(
-		&texHeapProp,
-		D3D12_HEAP_FLAG_NONE,
-		&resDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		nullptr,
-		IID_PPV_ARGS(&gradBuff)
-	);
-
-	if (FAILED(hresult))
-	{
-		return nullptr;
-	}
-
-	std::vector<unsigned char> data(4 * 256);
-	auto it = data.begin();
-	unsigned int c = 0xff;
-	for (; it != data.end(); it += 4)
-	{
-		auto col = (0xff << 24) | RGB(c,c,c);
-		std::fill(it, it + 4, col);
-		--c;
-	}
-
-	hresult = gradBuff->WriteToSubresource(
-		0, nullptr,
-		data.data(),
-		4 * 4,
-		data.size()
-	);
-
-	return gradBuff;
-}
-
 void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
 {
 	materials.resize(pmd.materials.size());
@@ -451,9 +345,9 @@ void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
 
 	auto matDescHeapHandle = materialDescHeap->GetCPUDescriptorHandleForHeapStart();
 	auto incSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	auto whiteTex = CreateWhiteTexture(device.Get());
-	auto blackTex = CreateBlackTexture(device.Get());
-	auto gradTex = CreateGrayGradationTexture(device.Get());
+	auto whiteTex = Application::Instance().CreateWhiteTexture(device);
+	auto blackTex = Application::Instance().CreateBlackTexture(device);
+	auto gradTex = Application::Instance().CreateGrayGradationTexture(device);
 	for (int i = 0; i < materials.size(); ++i)
 	{
 		device->CreateConstantBufferView(&matCBVDesc, matDescHeapHandle);

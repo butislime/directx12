@@ -1,14 +1,13 @@
 #pragma once
 
-#include <d3d12.h>
-#include <dxgi1_6.h>
-#include <wrl.h>
 #include <DirectXTex.h>
 
 #include <vector>
 #include <functional>
 #include <map>
+#include <memory>
 
+#include <DirectXWrapper.h>
 #include <PMDRenderer.h>
 
 namespace ms = Microsoft::WRL;
@@ -26,6 +25,9 @@ public:
 	unsigned int GetWindowHeight() const;
 
 	ID3D12Resource* LoadTextureFromFile(ms::ComPtr<ID3D12Device> device, std::string& texPath);
+	ID3D12Resource* CreateWhiteTexture(ms::ComPtr<ID3D12Device> device);
+	ID3D12Resource* CreateBlackTexture(ms::ComPtr<ID3D12Device> device);
+	ID3D12Resource* CreateGrayGradationTexture(ms::ComPtr<ID3D12Device> device);
 
 	~Application();
 
@@ -37,25 +39,10 @@ private:
 	void operator= (const Application&) = delete;
 
 private:
-	ms::ComPtr<ID3D12Device> device = nullptr;
-	ms::ComPtr<ID3D12CommandAllocator> cmdAllocator = nullptr;
-	ms::ComPtr<ID3D12GraphicsCommandList> cmdList = nullptr;
-	ms::ComPtr<ID3D12CommandQueue> cmdQueue = nullptr;
-	ms::ComPtr<IDXGISwapChain4> swapchain = nullptr;
-	ms::ComPtr<ID3D12DescriptorHeap> rtvHeaps = nullptr;
-	ms::ComPtr<ID3D12DescriptorHeap> dsvHeap = nullptr;
-
-	D3D12_VIEWPORT viewport = {};
-	D3D12_RECT scissorRect = {};
-
-	std::vector<ID3D12Resource*> backBuffers;
-
-	ms::ComPtr<ID3D12Fence> fence = nullptr;
-	UINT64 fenceVal = 0;
-
 	WNDCLASSEX window = {};
 
-	PMDRenderer* pmdRenderer = nullptr;
+	std::shared_ptr<DirectXWrapper> dxWrapper = nullptr;
+	std::shared_ptr<PMDRenderer> pmdRenderer = nullptr;
 
 	// resource cache
 	using LoadLambda_t = std::function<HRESULT(const std::wstring& path, DirectX::TexMetadata*, DirectX::ScratchImage&)>;
