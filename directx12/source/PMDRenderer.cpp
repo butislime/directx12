@@ -12,6 +12,11 @@ size_t AlignmentedSize(size_t size, size_t alignment)
 	return size + alignment - size % alignment;
 }
 
+void* Transform::operator new(size_t size)
+{
+	return _aligned_malloc(size, 16);
+}
+
 void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
 {
 	// material convert
@@ -42,7 +47,6 @@ void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
 		auto parent_name = bone_names[pb.parentNo];
 		boneNodeTable[parent_name].children.emplace_back(&boneNodeTable[pb.boneName]);
 	}
-	static unsigned short BoneMax = 256;
 	transform.boneMatrices.resize(BoneMax);
 	std::fill(transform.boneMatrices.begin(), transform.boneMatrices.end(), DirectX::XMMatrixIdentity());
 
@@ -265,9 +269,6 @@ void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
 	}
 
 	// matrix
-	// world
-	DirectX::XMMATRIX worldMat = DirectX::XMMatrixIdentity();
-	//DirectX::XMMATRIX worldMat = DirectX::XMMatrixRotationY(DirectX::XM_PI);
 	// view
 	DirectX::XMFLOAT3 eye(0, 10, -15);
 	DirectX::XMFLOAT3 target(0, 10, 0);
@@ -286,7 +287,6 @@ void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
 		1.0f, // near
 		100.0f // far
 	);
-	DirectX::XMMATRIX matrix = worldMat * viewMat * projMat;
 	// 定数バッファ作成
 	{
 		ID3D12Resource* scene_mat_buff = nullptr;
@@ -320,37 +320,9 @@ void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
 		cbvDesc.SizeInBytes = scene_mat_buff->GetDesc().Width;
 		device->CreateConstantBufferView(&cbvDesc, basicHeapHandle);
 	}
-	{
-		ID3D12Resource* transform_buff = nullptr;
-		auto matHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-		auto matResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(Transform::CalcAlignmentedSize(transform));
-		device->CreateCommittedResource(
-			&matHeapProp,
-			D3D12_HEAP_FLAG_NONE,
-			&matResourceDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(&transform_buff)
-		);
-		Transform* transform_matrices;
-		hresult = transform_buff->Map(0, nullptr, (void**)&transform_matrices);
-		transform_matrices->world = worldMat;
-		transform_matrices->boneMatrices = transform.boneMatrices;
 
-		D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
-		descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		descHeapDesc.NodeMask = 0;
-		descHeapDesc.NumDescriptors = 1; // cbv
-		descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		hresult = device->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(transformDescHeap.ReleaseAndGetAddressOf()));
-		std::cout << "CreateDescriptorHeap res=" << hresult << std::endl;
-
-		auto basicHeapHandle = transformDescHeap->GetCPUDescriptorHandleForHeapStart();
-		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-		cbvDesc.BufferLocation = transform_buff->GetGPUVirtualAddress();
-		cbvDesc.SizeInBytes = transform_buff->GetDesc().Width;
-		device->CreateConstantBufferView(&cbvDesc, basicHeapHandle);
-	}
+	hresult = CreateTransformView(device);
+	std::cout << "CreateTransformView res=" << hresult << std::endl;
 
 	// material
 	auto materialBuffSize = sizeof(PMDMaterialForHlsl);
@@ -602,6 +574,58 @@ void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
 	hresult = device->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(pipelineState.ReleaseAndGetAddressOf()));
 	std::cout << "CreateGraphicsPipelineState res=" << hresult << std::endl;
 }
+
+HRESULT PMDRenderer::CreateTransformView(ms::ComPtr<ID3D12Device> device)
+{
+	auto matHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+	auto matResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(Transform::CalcAlignmentedSize(transform));
+	auto hresult = device->CreateCommittedResource(
+		&matHeapProp,
+		D3D12_HEAP_FLAG_NONE,
+		&matResourceDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(transformBuff.ReleaseAndGetAddressOf())
+	);
+	if (FAILED(hresult))
+	{
+		return hresult;
+	}
+
+	hresult = transformBuff->Map(0, nullptr, (void**)&mappedMatrices);
+	std::cout << "CreateTransformView::Map res=" << hresult << std::endl;
+	if (FAILED(hresult))
+	{
+		return hresult;
+	}
+
+	// world
+	DirectX::XMMATRIX worldMat = DirectX::XMMatrixIdentity();
+
+	mappedMatrices[0] = worldMat;
+	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
+
+	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
+	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	descHeapDesc.NodeMask = 0;
+	descHeapDesc.NumDescriptors = 1; // cbv
+	descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	hresult = device->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(transformDescHeap.ReleaseAndGetAddressOf()));
+	std::cout << "CreateTransformView::CreateDescriptorHeap res=" << hresult << std::endl;
+	if (FAILED(hresult))
+	{
+		return hresult;
+	}
+
+	auto basicHeapHandle = transformDescHeap->GetCPUDescriptorHandleForHeapStart();
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+	cbvDesc.BufferLocation = transformBuff->GetGPUVirtualAddress();
+	cbvDesc.SizeInBytes = transformBuff->GetDesc().Width;
+	device->CreateConstantBufferView(&cbvDesc, basicHeapHandle);
+
+	return S_OK;
+}
+
 void PMDRenderer::Render(ms::ComPtr<ID3D12Device> device, ms::ComPtr<ID3D12GraphicsCommandList> cmdList)
 {
 	cmdList->SetGraphicsRootSignature(rootSignature.Get());

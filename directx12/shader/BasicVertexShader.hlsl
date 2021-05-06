@@ -8,6 +8,7 @@ Output BasicVS(
 	min16uint weight : WEIGHT)
 {
 	Output output;
+	pos = mul(bones[boneno[0]], pos);
 	output.pos = mul(world, pos);
 	output.svpos = mul(mul(proj, view), output.pos);
 	output.normal.w = 0; // ïΩçsà⁄ìÆÇ»Çµ

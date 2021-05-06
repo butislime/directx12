@@ -58,6 +58,8 @@ struct Transform
 		unsigned int size = sizeof(DirectX::XMMATRIX) + sizeof(DirectX::XMMATRIX) * transform.boneMatrices.size();
 		return size + 0xff & ~0xff;
 	}
+
+	void* operator new(size_t size);
 };
 
 class PMDRenderer
@@ -67,6 +69,10 @@ public:
 	void Render(ms::ComPtr<ID3D12Device> device, ms::ComPtr<ID3D12GraphicsCommandList> cmdList);
 
 	const ms::ComPtr<ID3D12PipelineState> GetPipelineState() const { return pipelineState; }
+
+private:
+	HRESULT CreateTransformView(ms::ComPtr<ID3D12Device> device);
+
 private:
 	// pmd
 	ms::ComPtr<ID3D12RootSignature> rootSignature = nullptr;
@@ -82,4 +88,9 @@ private:
 
 	std::vector<Material> materials;
 	std::map<std::string, BoneNode> boneNodeTable;
+
+	ms::ComPtr<ID3D12Resource> transformBuff = nullptr;
+	DirectX::XMMATRIX* mappedMatrices = nullptr;
+
+	static const unsigned short BoneMax = 256;
 };
