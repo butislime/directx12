@@ -602,6 +602,14 @@ HRESULT PMDRenderer::CreateTransformView(ms::ComPtr<ID3D12Device> device)
 	// world
 	DirectX::XMMATRIX worldMat = DirectX::XMMatrixIdentity();
 
+	// test
+	auto& node = boneNodeTable["ç∂òr"];
+	auto& pos = node.startPos;
+	auto mat = DirectX::XMMatrixTranslation(-pos.x, -pos.y, -pos.z) // å¥ì_Ç÷à⁄ìÆ
+		* DirectX::XMMatrixRotationZ(DirectX::XM_PIDIV2) // âÒì]
+		* DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z); // å≥ÇÃà íuÇ÷
+	RecursiveMatrixMultiply(&node, mat);
+
 	mappedMatrices[0] = worldMat;
 	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
 
@@ -624,6 +632,15 @@ HRESULT PMDRenderer::CreateTransformView(ms::ComPtr<ID3D12Device> device)
 	device->CreateConstantBufferView(&cbvDesc, basicHeapHandle);
 
 	return S_OK;
+}
+
+void PMDRenderer::RecursiveMatrixMultiply(BoneNode* node, const DirectX::XMMATRIX& mat)
+{
+	transform.boneMatrices[node->boneIdx] *= mat;
+	for (auto& cnode : node->children)
+	{
+		RecursiveMatrixMultiply(cnode, transform.boneMatrices[node->boneIdx]);
+	}
 }
 
 void PMDRenderer::Render(ms::ComPtr<ID3D12Device> device, ms::ComPtr<ID3D12GraphicsCommandList> cmdList)

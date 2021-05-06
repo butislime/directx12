@@ -73,6 +73,8 @@ public:
 private:
 	HRESULT CreateTransformView(ms::ComPtr<ID3D12Device> device);
 
+	void RecursiveMatrixMultiply(BoneNode* node, const DirectX::XMMATRIX& mat);
+
 private:
 	// pmd
 	ms::ComPtr<ID3D12RootSignature> rootSignature = nullptr;
