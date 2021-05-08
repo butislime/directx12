@@ -105,3 +105,38 @@ PMD LoadPMD(const std::string& path)
 
 	return pmd;
 }
+
+VMD LoadVMD(const std::string& path)
+{
+	FILE* fp;
+	fopen_s(&fp, path.c_str(), "rb");
+	fseek(fp, 50, SEEK_SET); // 最初の50バイトは未使用
+
+	VMD vmd;
+
+	unsigned int motion_data_num = 0;
+	fread(&motion_data_num, sizeof(motion_data_num), 1, fp);
+	std::cout << "motion data num:" << motion_data_num << std::endl;
+
+	vmd.motionData.resize(motion_data_num);
+	for (auto& motion : vmd.motionData)
+	{
+		fread(motion.boneName, sizeof(motion.boneName), 1, fp);
+		fread(&motion.frameNo,
+			sizeof(motion.frameNo) +
+			sizeof(motion.location) +
+			sizeof(motion.quaternion) +
+			sizeof(motion.bezier),
+			1, fp);
+	}
+
+	for (auto& motion : vmd.motionData)
+	{
+		auto q = DirectX::XMLoadFloat(&motion.quaternion.x);
+		vmd.keyFrames[motion.boneName].emplace_back(KeyFrame(motion.frameNo, q));
+	}
+
+	fclose(fp);
+
+	return vmd;
+}

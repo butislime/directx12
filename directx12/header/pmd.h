@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <DirectXMath.h>
 
 struct PMDHeader
@@ -61,6 +62,30 @@ struct PMD
 	std::vector<PMDBone> bones;
 };
 
+struct VMDMotion
+{
+	char boneName[15];
+	unsigned int frameNo;
+	DirectX::XMFLOAT3 location;
+	DirectX::XMFLOAT4 quaternion;
+	unsigned char bezier[64];
+};
+
+struct KeyFrame
+{
+	unsigned int frameNo;
+	DirectX::XMVECTOR quaternion;
+
+	KeyFrame(unsigned int fno, DirectX::XMVECTOR& q)
+		: frameNo(fno), quaternion(q) {}
+};
+
+struct VMD
+{
+	std::vector<VMDMotion> motionData;
+	std::unordered_map<std::string, std::vector<KeyFrame>> keyFrames;
+};
+
 std::string GetTexturePathFromModelAndTexPath(const std::string& modelPath, const char* texPath);
 std::wstring GetWideStringFromString(const std::string& str);
 std::string GetExtension(const std::string& path);
@@ -68,3 +93,4 @@ std::pair<std::string, std::string> SplitFileName(const std::string& path, const
 
 PMDHeader LoadPMDHeader(const std::string& path);
 PMD LoadPMD(const std::string& path);
+VMD LoadVMD(const std::string& path);
