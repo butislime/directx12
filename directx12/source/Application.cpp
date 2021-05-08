@@ -287,10 +287,11 @@ bool Application::Init()
 
 	// pmd renderer
 	auto pmd = LoadPMD(strModelPath);
+	auto vmd = LoadVMD(strMotionPath);
 	pmdRenderer.reset(new PMDRenderer());
-	pmdRenderer->Init(pmd, dxWrapper->GetDevice());
+	pmdRenderer->Init(pmd, vmd, dxWrapper->GetDevice());
 
-	LoadVMD(strMotionPath);
+	//pmdRenderer->SetMotion(vmd);
 
 	ShowWindow(hwnd, SW_SHOW);
 
@@ -312,11 +313,13 @@ void Application::Run()
 		{
 			break;
 		}
+		// update
+		pmdRenderer->Update();
 
+		// render
 		dxWrapper->BeginDraw();
 
 		auto command_list = dxWrapper->GetCommandList();
-		// render
 		auto pipeline_state = pmdRenderer->GetPipelineState();
 		command_list->SetPipelineState(pipeline_state.Get());
 		pmdRenderer->Render(dxWrapper->GetDevice().Get(), command_list);

@@ -17,7 +17,7 @@ void* Transform::operator new(size_t size)
 	return _aligned_malloc(size, 16);
 }
 
-void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
+void PMDRenderer::Init(PMD& pmd, VMD& vmd, ms::ComPtr<ID3D12Device> device)
 {
 	// material convert
 	materials.resize(pmd.materials.size());
@@ -49,6 +49,8 @@ void PMDRenderer::Init(PMD& pmd, ms::ComPtr<ID3D12Device> device)
 	}
 	transform.boneMatrices.resize(BoneMax);
 	std::fill(transform.boneMatrices.begin(), transform.boneMatrices.end(), DirectX::XMMatrixIdentity());
+
+	this->vmd = vmd;
 
 	// 頂点バッファの作成
 	ID3D12Resource* vertBuff = nullptr;
@@ -600,9 +602,12 @@ HRESULT PMDRenderer::CreateTransformView(ms::ComPtr<ID3D12Device> device)
 	}
 
 	// world
-	DirectX::XMMATRIX worldMat = DirectX::XMMatrixIdentity();
+	transform.world = DirectX::XMMatrixIdentity();
+	mappedMatrices[0] = transform.world;
+	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
 
 	// test
+#if false
 	auto arm_node = boneNodeTable["左腕"];
 	auto& arm_pos = arm_node.startPos;
 	auto arm_mat = DirectX::XMMatrixTranslation(-arm_pos.x, -arm_pos.y, -arm_pos.z) // 原点へ移動
@@ -619,8 +624,23 @@ HRESULT PMDRenderer::CreateTransformView(ms::ComPtr<ID3D12Device> device)
 
 	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
 
-	mappedMatrices[0] = worldMat;
+	mappedMatrices[0] = transform.world;
 	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
+#else
+	for (auto& key_frame : vmd.keyFrames)
+	{
+		auto node = boneNodeTable[key_frame.first];
+		auto& pos = node.startPos;
+		auto mat = DirectX::XMMatrixTranslation(-pos.x, -pos.y, -pos.z)
+			* DirectX::XMMatrixRotationQuaternion(key_frame.second[0].quaternion)
+			* DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z);
+		transform.boneMatrices[node.boneIdx] = mat;
+	}
+	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
+
+	mappedMatrices[0] = transform.world;
+	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
+#endif
 
 	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
 	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
@@ -650,6 +670,70 @@ void PMDRenderer::RecursiveMatrixMultiply(BoneNode* node, const DirectX::XMMATRI
 	{
 		RecursiveMatrixMultiply(cnode, transform.boneMatrices[node->boneIdx]);
 	}
+}
+
+void PMDRenderer::SetMotion(VMD& vmd)
+{
+	this->vmd = vmd;
+	// todo
+	UpdateBones();
+}
+
+void PMDRenderer::UpdateBones()
+{
+#if false
+	auto arm_node = boneNodeTable["左腕"];
+	auto& arm_pos = arm_node.startPos;
+	auto arm_mat = DirectX::XMMatrixTranslation(-arm_pos.x, -arm_pos.y, -arm_pos.z) // 原点へ移動
+		* DirectX::XMMatrixRotationZ(DirectX::XM_PIDIV2) // 回転
+		* DirectX::XMMatrixTranslation(arm_pos.x, arm_pos.y, arm_pos.z); // 元の位置へ
+	transform.boneMatrices[arm_node.boneIdx] = arm_mat;
+
+	auto elbow_node = boneNodeTable["左ひじ"];
+	auto& elbow_pos = elbow_node.startPos;
+	auto elbow_mat = DirectX::XMMatrixTranslation(-elbow_pos.x, -elbow_pos.y, -elbow_pos.z)
+		* DirectX::XMMatrixRotationZ(-DirectX::XM_PIDIV2)
+		* DirectX::XMMatrixTranslation(elbow_pos.x, elbow_pos.y, elbow_pos.z);
+	transform.boneMatrices[elbow_node.boneIdx] = elbow_mat;
+
+	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
+
+	mappedMatrices[0] = transform.world;
+	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
+#else
+	for (auto& key_frame : vmd.keyFrames)
+	{
+		auto node = boneNodeTable[key_frame.first];
+		auto& pos = node.startPos;
+		auto mat = DirectX::XMMatrixTranslation(-pos.x, -pos.y, -pos.z)
+			* DirectX::XMMatrixRotationQuaternion(key_frame.second[0].quaternion)
+			* DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z);
+		transform.boneMatrices[node.boneIdx] = mat;
+	}
+	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
+
+	mappedMatrices[0] = transform.world;
+	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
+#endif
+}
+
+void PMDRenderer::Update()
+{
+#if false
+	for (auto& key_frame : vmd.keyFrames)
+	{
+		auto node = boneNodeTable[key_frame.first];
+		auto& pos = node.startPos;
+		auto mat = DirectX::XMMatrixTranslation(-pos.x, -pos.y, -pos.z)
+			* DirectX::XMMatrixRotationQuaternion(key_frame.second[0].quaternion)
+			* DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z);
+		transform.boneMatrices[node.boneIdx] = mat;
+	}
+	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
+
+	mappedMatrices[0] = transform.world;
+	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
+#endif
 }
 
 void PMDRenderer::Render(ms::ComPtr<ID3D12Device> device, ms::ComPtr<ID3D12GraphicsCommandList> cmdList)

@@ -65,14 +65,18 @@ struct Transform
 class PMDRenderer
 {
 public:
-	void Init(PMD& pmd, ms::ComPtr<ID3D12Device> device);
+	void Init(PMD& pmd, VMD& vmd, ms::ComPtr<ID3D12Device> device);
+	void Update();
 	void Render(ms::ComPtr<ID3D12Device> device, ms::ComPtr<ID3D12GraphicsCommandList> cmdList);
+
+	void SetMotion(VMD& vmd);
 
 	const ms::ComPtr<ID3D12PipelineState> GetPipelineState() const { return pipelineState; }
 
 private:
 	HRESULT CreateTransformView(ms::ComPtr<ID3D12Device> device);
 
+	void UpdateBones();
 	void RecursiveMatrixMultiply(BoneNode* node, const DirectX::XMMATRIX& mat);
 
 private:
@@ -95,4 +99,6 @@ private:
 	DirectX::XMMATRIX* mappedMatrices = nullptr;
 
 	static const unsigned short BoneMax = 256;
+
+	VMD vmd;
 };
