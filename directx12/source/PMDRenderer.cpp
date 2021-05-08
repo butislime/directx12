@@ -603,12 +603,21 @@ HRESULT PMDRenderer::CreateTransformView(ms::ComPtr<ID3D12Device> device)
 	DirectX::XMMATRIX worldMat = DirectX::XMMatrixIdentity();
 
 	// test
-	auto& node = boneNodeTable["左腕"];
-	auto& pos = node.startPos;
-	auto mat = DirectX::XMMatrixTranslation(-pos.x, -pos.y, -pos.z) // 原点へ移動
+	auto arm_node = boneNodeTable["左腕"];
+	auto& arm_pos = arm_node.startPos;
+	auto arm_mat = DirectX::XMMatrixTranslation(-arm_pos.x, -arm_pos.y, -arm_pos.z) // 原点へ移動
 		* DirectX::XMMatrixRotationZ(DirectX::XM_PIDIV2) // 回転
-		* DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z); // 元の位置へ
-	RecursiveMatrixMultiply(&node, mat);
+		* DirectX::XMMatrixTranslation(arm_pos.x, arm_pos.y, arm_pos.z); // 元の位置へ
+	transform.boneMatrices[arm_node.boneIdx] = arm_mat;
+
+	auto elbow_node = boneNodeTable["左ひじ"];
+	auto& elbow_pos = elbow_node.startPos;
+	auto elbow_mat = DirectX::XMMatrixTranslation(-elbow_pos.x, -elbow_pos.y, -elbow_pos.z)
+		* DirectX::XMMatrixRotationZ(-DirectX::XM_PIDIV2)
+		* DirectX::XMMatrixTranslation(elbow_pos.x, elbow_pos.y, elbow_pos.z);
+	transform.boneMatrices[elbow_node.boneIdx] = elbow_mat;
+
+	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
 
 	mappedMatrices[0] = worldMat;
 	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
