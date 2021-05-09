@@ -84,6 +84,7 @@ struct VMD
 {
 	std::vector<VMDMotion> motionData;
 	std::unordered_map<std::string, std::vector<KeyFrame>> keyFrames;
+	unsigned int durationFrame = 0;
 };
 
 std::string GetTexturePathFromModelAndTexPath(const std::string& modelPath, const char* texPath);

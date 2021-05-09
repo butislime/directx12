@@ -135,6 +135,8 @@ VMD LoadVMD(const std::string& path)
 	{
 		auto q = DirectX::XMLoadFloat4(&motion.quaternion);
 		vmd.keyFrames[motion.boneName].emplace_back(KeyFrame(motion.frameNo, q));
+
+		vmd.durationFrame = std::max<unsigned int>(vmd.durationFrame, motion.frameNo);
 	}
 
 	for (auto& kv : vmd.keyFrames)

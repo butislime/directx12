@@ -84,6 +84,12 @@ void PMDActor::MotionUpdate()
 	elapsedTime = timeGetTime() - startTime;
 	unsigned int frame_no = 30 * (elapsedTime / 1000.0f);
 
+	if (frame_no > vmd.durationFrame)
+	{
+		startTime = timeGetTime();
+		frame_no = 0;
+	}
+
 	std::fill(transform.boneMatrices.begin(), transform.boneMatrices.end(), DirectX::XMMatrixIdentity());
 
 	for (auto& key_val : vmd.keyFrames)
