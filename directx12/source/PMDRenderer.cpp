@@ -596,6 +596,10 @@ HRESULT PMDRenderer::CreateTransformView(ms::ComPtr<ID3D12Device> device)
 
 void PMDRenderer::Render(ms::ComPtr<ID3D12Device> device, ms::ComPtr<ID3D12GraphicsCommandList> cmdList)
 {
+	const auto& transform = actor->GetTransform();
+	mappedMatrices[0] = transform.world;
+	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
+
 	cmdList->SetGraphicsRootSignature(rootSignature.Get());
 	ID3D12DescriptorHeap* basic_heaps[] = { basicDescHeap.Get() };
 	cmdList->SetDescriptorHeaps(1, basic_heaps);

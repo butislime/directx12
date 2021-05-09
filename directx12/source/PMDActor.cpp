@@ -1,4 +1,6 @@
 #include <PMDActor.h>
+#include <Windows.h>
+#pragma comment(lib, "winmm.lib")
 
 void* Transform::operator new(size_t size)
 {
@@ -8,7 +10,7 @@ void* Transform::operator new(size_t size)
 void PMDActor::Init()
 {
 	static std::string strModelPath = "model/初音ミク.pmd";
-	static std::string strMotionPath = "motion/pose.vmd";
+	static std::string strMotionPath = "motion/swing.vmd";
 	pmd = LoadPMD(strModelPath);
 	vmd = LoadVMD(strMotionPath);
 
@@ -60,21 +62,12 @@ void PMDActor::Init()
 
 void PMDActor::Update()
 {
-#if false
-	transform.world = DirectX::XMMatrixIdentity();
+	MotionUpdate();
+}
 
-	for (auto& key_frame : vmd.keyFrames)
-	{
-		auto node = boneNodeTable[key_frame.first];
-		auto& pos = node.startPos;
-		auto mat = DirectX::XMMatrixTranslation(-pos.x, -pos.y, -pos.z)
-			* DirectX::XMMatrixRotationQuaternion(key_frame.second[0].quaternion)
-			* DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z);
-		transform.boneMatrices[node.boneIdx] = mat;
-	}
-	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
-#endif
-
+void PMDActor::PlayAnimation()
+{
+	startTime = timeGetTime();
 }
 
 void PMDActor::RecursiveMatrixMultiply(BoneNode* node, const DirectX::XMMATRIX& mat)
@@ -84,4 +77,30 @@ void PMDActor::RecursiveMatrixMultiply(BoneNode* node, const DirectX::XMMATRIX& 
 	{
 		RecursiveMatrixMultiply(cnode, transform.boneMatrices[node->boneIdx]);
 	}
+}
+
+void PMDActor::MotionUpdate()
+{
+	elapsedTime = timeGetTime() - startTime;
+	unsigned int frame_no = 30 * (elapsedTime / 1000.0f);
+
+	std::fill(transform.boneMatrices.begin(), transform.boneMatrices.end(), DirectX::XMMatrixIdentity());
+
+	for (auto& key_val : vmd.keyFrames)
+	{
+		auto node = boneNodeTable[key_val.first];
+		auto motions = key_val.second;
+		auto it = std::find_if(motions.rbegin(), motions.rend(), [frame_no](const KeyFrame& kf) {
+				return kf.frameNo <= frame_no;
+			});
+		if (it == motions.rend())
+			continue;
+
+		auto& pos = node.startPos;
+		auto mat = DirectX::XMMatrixTranslation(-pos.x, -pos.y, -pos.z)
+			* DirectX::XMMatrixRotationQuaternion(it->quaternion)
+			* DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z);
+		transform.boneMatrices[node.boneIdx] = mat;
+	}
+	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
 }

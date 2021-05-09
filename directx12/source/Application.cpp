@@ -296,6 +296,8 @@ bool Application::Init()
 
 void Application::Run()
 {
+	pmdActor->PlayAnimation();
+
 	MSG msg = {};
 	while (true)
 	{

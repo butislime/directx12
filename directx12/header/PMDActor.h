@@ -53,6 +53,7 @@ class PMDActor
 public:
 	void Init();
 	void Update();
+	void PlayAnimation();
 
 	const PMD& GetPMD() const { return pmd; }
 	const VMD& GetVMD() const { return vmd; }
@@ -62,6 +63,7 @@ public:
 
 private:
 	void RecursiveMatrixMultiply(BoneNode* node, const DirectX::XMMATRIX& mat);
+	void MotionUpdate();
 
 private:
 	PMD pmd;
@@ -73,4 +75,8 @@ private:
 	std::map<std::string, BoneNode> boneNodeTable;
 
 	static const unsigned short BoneMax = 256;
+
+	// animation
+	DWORD startTime;
+	DWORD elapsedTime;
 };
