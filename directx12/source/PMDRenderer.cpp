@@ -12,46 +12,12 @@ size_t AlignmentedSize(size_t size, size_t alignment)
 	return size + alignment - size % alignment;
 }
 
-void* Transform::operator new(size_t size)
+void PMDRenderer::Init(ms::ComPtr<ID3D12Device> device, std::shared_ptr<PMDActor> actor)
 {
-	return _aligned_malloc(size, 16);
-}
+	this->actor = actor;
 
-void PMDRenderer::Init(PMD& pmd, VMD& vmd, ms::ComPtr<ID3D12Device> device)
-{
-	// material convert
-	materials.resize(pmd.materials.size());
-	for (int i = 0; i < pmd.materials.size(); ++i)
-	{
-		materials[i].indicesNum = pmd.materials[i].indicesNum;
-		materials[i].pmdmat4hlsl.diffuse = pmd.materials[i].diffuse;
-		materials[i].pmdmat4hlsl.alpha = pmd.materials[i].alpha;
-		materials[i].pmdmat4hlsl.specular = pmd.materials[i].specular;
-		materials[i].pmdmat4hlsl.specularity = pmd.materials[i].specularity;
-		materials[i].pmdmat4hlsl.ambient = pmd.materials[i].ambient;
-	}
-	// bone convert
-	std::vector<std::string> bone_names(pmd.bones.size());
-	for (int idx = 0; idx < pmd.bones.size(); ++idx)
-	{
-		auto& pb = pmd.bones[idx];
-		bone_names[idx] = pb.boneName;
-		auto& node = boneNodeTable[pb.boneName];
-		node.boneIdx = idx;
-		node.startPos = pb.pos;
-	}
-	for (auto& pb : pmd.bones)
-	{
-		if (pb.parentNo >= pmd.bones.size()) continue;
-
-		auto parent_name = bone_names[pb.parentNo];
-		boneNodeTable[parent_name].children.emplace_back(&boneNodeTable[pb.boneName]);
-	}
-	transform.boneMatrices.resize(BoneMax);
-	std::fill(transform.boneMatrices.begin(), transform.boneMatrices.end(), DirectX::XMMatrixIdentity());
-
-	this->vmd = vmd;
-
+	const auto& pmd = actor->GetPMD();
+	const auto& vmd = actor->GetVMD();
 	// 頂点バッファの作成
 	ID3D12Resource* vertBuff = nullptr;
 	D3D12_HEAP_PROPERTIES heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
@@ -327,6 +293,7 @@ void PMDRenderer::Init(PMD& pmd, VMD& vmd, ms::ComPtr<ID3D12Device> device)
 	std::cout << "CreateTransformView res=" << hresult << std::endl;
 
 	// material
+	const auto& materials = actor->GetMaterials();
 	auto materialBuffSize = sizeof(PMDMaterialForHlsl);
 	materialBuffSize = (materialBuffSize + 0xff) & ~0xff; // 256byteアライメント
 	ID3D12Resource* materialBuff = nullptr;
@@ -579,6 +546,7 @@ void PMDRenderer::Init(PMD& pmd, VMD& vmd, ms::ComPtr<ID3D12Device> device)
 
 HRESULT PMDRenderer::CreateTransformView(ms::ComPtr<ID3D12Device> device)
 {
+	const auto& transform = actor->GetTransform();
 	auto matHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 	auto matResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(Transform::CalcAlignmentedSize(transform));
 	auto hresult = device->CreateCommittedResource(
@@ -601,46 +569,9 @@ HRESULT PMDRenderer::CreateTransformView(ms::ComPtr<ID3D12Device> device)
 		return hresult;
 	}
 
-	// world
-	transform.world = DirectX::XMMatrixIdentity();
+	// matrix
 	mappedMatrices[0] = transform.world;
 	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
-
-	// test
-#if false
-	auto arm_node = boneNodeTable["左腕"];
-	auto& arm_pos = arm_node.startPos;
-	auto arm_mat = DirectX::XMMatrixTranslation(-arm_pos.x, -arm_pos.y, -arm_pos.z) // 原点へ移動
-		* DirectX::XMMatrixRotationZ(DirectX::XM_PIDIV2) // 回転
-		* DirectX::XMMatrixTranslation(arm_pos.x, arm_pos.y, arm_pos.z); // 元の位置へ
-	transform.boneMatrices[arm_node.boneIdx] = arm_mat;
-
-	auto elbow_node = boneNodeTable["左ひじ"];
-	auto& elbow_pos = elbow_node.startPos;
-	auto elbow_mat = DirectX::XMMatrixTranslation(-elbow_pos.x, -elbow_pos.y, -elbow_pos.z)
-		* DirectX::XMMatrixRotationZ(-DirectX::XM_PIDIV2)
-		* DirectX::XMMatrixTranslation(elbow_pos.x, elbow_pos.y, elbow_pos.z);
-	transform.boneMatrices[elbow_node.boneIdx] = elbow_mat;
-
-	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
-
-	mappedMatrices[0] = transform.world;
-	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
-#else
-	for (auto& key_frame : vmd.keyFrames)
-	{
-		auto node = boneNodeTable[key_frame.first];
-		auto& pos = node.startPos;
-		auto mat = DirectX::XMMatrixTranslation(-pos.x, -pos.y, -pos.z)
-			* DirectX::XMMatrixRotationQuaternion(key_frame.second[0].quaternion)
-			* DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z);
-		transform.boneMatrices[node.boneIdx] = mat;
-	}
-	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
-
-	mappedMatrices[0] = transform.world;
-	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
-#endif
 
 	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
 	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
@@ -661,79 +592,6 @@ HRESULT PMDRenderer::CreateTransformView(ms::ComPtr<ID3D12Device> device)
 	device->CreateConstantBufferView(&cbvDesc, basicHeapHandle);
 
 	return S_OK;
-}
-
-void PMDRenderer::RecursiveMatrixMultiply(BoneNode* node, const DirectX::XMMATRIX& mat)
-{
-	transform.boneMatrices[node->boneIdx] *= mat;
-	for (auto& cnode : node->children)
-	{
-		RecursiveMatrixMultiply(cnode, transform.boneMatrices[node->boneIdx]);
-	}
-}
-
-void PMDRenderer::SetMotion(VMD& vmd)
-{
-	this->vmd = vmd;
-	// todo
-	UpdateBones();
-}
-
-void PMDRenderer::UpdateBones()
-{
-#if false
-	auto arm_node = boneNodeTable["左腕"];
-	auto& arm_pos = arm_node.startPos;
-	auto arm_mat = DirectX::XMMatrixTranslation(-arm_pos.x, -arm_pos.y, -arm_pos.z) // 原点へ移動
-		* DirectX::XMMatrixRotationZ(DirectX::XM_PIDIV2) // 回転
-		* DirectX::XMMatrixTranslation(arm_pos.x, arm_pos.y, arm_pos.z); // 元の位置へ
-	transform.boneMatrices[arm_node.boneIdx] = arm_mat;
-
-	auto elbow_node = boneNodeTable["左ひじ"];
-	auto& elbow_pos = elbow_node.startPos;
-	auto elbow_mat = DirectX::XMMatrixTranslation(-elbow_pos.x, -elbow_pos.y, -elbow_pos.z)
-		* DirectX::XMMatrixRotationZ(-DirectX::XM_PIDIV2)
-		* DirectX::XMMatrixTranslation(elbow_pos.x, elbow_pos.y, elbow_pos.z);
-	transform.boneMatrices[elbow_node.boneIdx] = elbow_mat;
-
-	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
-
-	mappedMatrices[0] = transform.world;
-	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
-#else
-	for (auto& key_frame : vmd.keyFrames)
-	{
-		auto node = boneNodeTable[key_frame.first];
-		auto& pos = node.startPos;
-		auto mat = DirectX::XMMatrixTranslation(-pos.x, -pos.y, -pos.z)
-			* DirectX::XMMatrixRotationQuaternion(key_frame.second[0].quaternion)
-			* DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z);
-		transform.boneMatrices[node.boneIdx] = mat;
-	}
-	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
-
-	mappedMatrices[0] = transform.world;
-	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
-#endif
-}
-
-void PMDRenderer::Update()
-{
-#if false
-	for (auto& key_frame : vmd.keyFrames)
-	{
-		auto node = boneNodeTable[key_frame.first];
-		auto& pos = node.startPos;
-		auto mat = DirectX::XMMatrixTranslation(-pos.x, -pos.y, -pos.z)
-			* DirectX::XMMatrixRotationQuaternion(key_frame.second[0].quaternion)
-			* DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z);
-		transform.boneMatrices[node.boneIdx] = mat;
-	}
-	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
-
-	mappedMatrices[0] = transform.world;
-	std::copy(transform.boneMatrices.begin(), transform.boneMatrices.end(), &mappedMatrices[1]);
-#endif
 }
 
 void PMDRenderer::Render(ms::ComPtr<ID3D12Device> device, ms::ComPtr<ID3D12GraphicsCommandList> cmdList)
@@ -757,6 +615,7 @@ void PMDRenderer::Render(ms::ComPtr<ID3D12Device> device, ms::ComPtr<ID3D12Graph
 	auto materialHandle = materialDescHeap->GetGPUDescriptorHandleForHeapStart();
 	auto cbvsrvIncSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * 5; // cbvとsrv4つ
 	unsigned int idxOffset = 0;
+	const auto& materials = actor->GetMaterials();
 	for (auto& m : materials)
 	{
 		cmdList->SetGraphicsRootDescriptorTable(2, materialHandle);

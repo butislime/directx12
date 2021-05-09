@@ -42,6 +42,7 @@ private:
 	WNDCLASSEX window = {};
 
 	std::shared_ptr<DirectXWrapper> dxWrapper = nullptr;
+	std::shared_ptr<PMDActor> pmdActor = nullptr;
 	std::shared_ptr<PMDRenderer> pmdRenderer = nullptr;
 
 	// resource cache

@@ -11,8 +11,6 @@
 
 // todo
 static auto WINDOW_WIDTH = 1280, WINDOW_HEIGHT = 720;
-static std::string strModelPath = "model/‰‰¹ƒ~ƒN.pmd";
-static std::string strMotionPath = "motion/pose.vmd";
 
 struct Vertex
 {
@@ -285,13 +283,11 @@ bool Application::Init()
 	dxWrapper.reset(new DirectXWrapper());
 	dxWrapper->Init(hwnd);
 
+	pmdActor.reset(new PMDActor());
+	pmdActor->Init();
 	// pmd renderer
-	auto pmd = LoadPMD(strModelPath);
-	auto vmd = LoadVMD(strMotionPath);
 	pmdRenderer.reset(new PMDRenderer());
-	pmdRenderer->Init(pmd, vmd, dxWrapper->GetDevice());
-
-	//pmdRenderer->SetMotion(vmd);
+	pmdRenderer->Init(dxWrapper->GetDevice(), pmdActor);
 
 	ShowWindow(hwnd, SW_SHOW);
 
@@ -314,7 +310,7 @@ void Application::Run()
 			break;
 		}
 		// update
-		pmdRenderer->Update();
+		pmdActor->Update();
 
 		// render
 		dxWrapper->BeginDraw();
