@@ -2,6 +2,8 @@
 #include <Windows.h>
 #pragma comment(lib, "winmm.lib")
 
+#include <iostream>
+
 void* Transform::operator new(size_t size)
 {
 	return _aligned_malloc(size, 16);
@@ -10,7 +12,7 @@ void* Transform::operator new(size_t size)
 void PMDActor::Init()
 {
 	static std::string strModelPath = "model/初音ミク.pmd";
-	static std::string strMotionPath = "motion/motion.vmd";
+	static std::string strMotionPath = "motion/swing2.vmd";
 	pmd = LoadPMD(strModelPath);
 	vmd = LoadVMD(strMotionPath);
 
@@ -107,6 +109,7 @@ void PMDActor::MotionUpdate()
 		if (it != motions.end())
 		{
 			auto t = static_cast<float>(frame_no - rit->frameNo) / static_cast<float>(it->frameNo - rit->frameNo);
+			t = GetYFromXOnBezier(t, it->p1, it->p2, 12);
 			rotation = DirectX::XMMatrixRotationQuaternion(DirectX::XMQuaternionSlerp(rit->quaternion, it->quaternion, t));
 		}
 		else
@@ -121,4 +124,28 @@ void PMDActor::MotionUpdate()
 		transform.boneMatrices[node.boneIdx] = mat;
 	}
 	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
+}
+
+float PMDActor::GetYFromXOnBezier(float x, const DirectX::XMFLOAT2& a, const DirectX::XMFLOAT2& b, uint8_t n)
+{
+	if (a.x == a.y && b.x == b.y)
+		return x;
+
+	float t = x;
+	const float k0 = 1 + 3 * a.x - 3 * b.x;
+	const float k1 = 3 * b.x - 6 * a.x;
+	const float k2 = 3 * a.x;
+
+	constexpr float epsilon = 0.0005f;
+
+	// tを近似
+	for (int i = 0; i < n; ++i)
+	{
+		auto ft = k0 * t * t * t + k1 * t * t + k2 * t - x;
+		if (ft <= epsilon && ft >= -epsilon)
+			break;
+		t -= ft / 2;
+	}
+	auto r = 1 - t;
+	return t * t * t + 3 * t * t * r * b.y + 3 * t * r * r * a.y;
 }

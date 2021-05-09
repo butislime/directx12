@@ -64,6 +64,7 @@ public:
 private:
 	void RecursiveMatrixMultiply(BoneNode* node, const DirectX::XMMATRIX& mat);
 	void MotionUpdate();
+	float GetYFromXOnBezier(float x, const DirectX::XMFLOAT2& a, const DirectX::XMFLOAT2& b, uint8_t n);
 
 private:
 	PMD pmd;
