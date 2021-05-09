@@ -10,7 +10,7 @@ void* Transform::operator new(size_t size)
 void PMDActor::Init()
 {
 	static std::string strModelPath = "model/èââπÉ~ÉN.pmd";
-	static std::string strMotionPath = "motion/swing.vmd";
+	static std::string strMotionPath = "motion/motion.vmd";
 	pmd = LoadPMD(strModelPath);
 	vmd = LoadVMD(strMotionPath);
 
@@ -90,15 +90,27 @@ void PMDActor::MotionUpdate()
 	{
 		auto node = boneNodeTable[key_val.first];
 		auto motions = key_val.second;
-		auto it = std::find_if(motions.rbegin(), motions.rend(), [frame_no](const KeyFrame& kf) {
-				return kf.frameNo <= frame_no;
-			});
-		if (it == motions.rend())
+		auto rit = std::find_if(motions.rbegin(), motions.rend(), [frame_no](const KeyFrame& kf) {
+			return kf.frameNo <= frame_no;
+		});
+		if (rit == motions.rend())
 			continue;
+
+		DirectX::XMMATRIX rotation;
+		auto it = rit.base();
+		if (it != motions.end())
+		{
+			auto t = static_cast<float>(frame_no - rit->frameNo) / static_cast<float>(it->frameNo - rit->frameNo);
+			rotation = DirectX::XMMatrixRotationQuaternion(DirectX::XMQuaternionSlerp(rit->quaternion, it->quaternion, t));
+		}
+		else
+		{
+			rotation = DirectX::XMMatrixRotationQuaternion(rit->quaternion);
+		}
 
 		auto& pos = node.startPos;
 		auto mat = DirectX::XMMatrixTranslation(-pos.x, -pos.y, -pos.z)
-			* DirectX::XMMatrixRotationQuaternion(it->quaternion)
+			* rotation
 			* DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z);
 		transform.boneMatrices[node.boneIdx] = mat;
 	}

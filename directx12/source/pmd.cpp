@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <Windows.h>
+#include <algorithm>
 
 //! テクスチャパスの変換
 std::string GetTexturePathFromModelAndTexPath(
@@ -134,6 +135,13 @@ VMD LoadVMD(const std::string& path)
 	{
 		auto q = DirectX::XMLoadFloat4(&motion.quaternion);
 		vmd.keyFrames[motion.boneName].emplace_back(KeyFrame(motion.frameNo, q));
+	}
+
+	for (auto& kv : vmd.keyFrames)
+	{
+		std::sort(kv.second.begin(), kv.second.end(), [](const KeyFrame& lv, const KeyFrame& rv) {
+			return lv.frameNo <= rv.frameNo;
+		});
 	}
 
 	fclose(fp);
