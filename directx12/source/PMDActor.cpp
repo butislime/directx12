@@ -60,6 +60,26 @@ void PMDActor::Init()
 		transform.boneMatrices[node.boneIdx] = mat;
 	}
 	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
+
+	// ikデバッグ表示
+	auto get_name_from_idx = [&](uint16_t idx) -> std::string
+	{
+		auto it = std::find_if(boneNodeTable.begin(), boneNodeTable.end(), [idx](const std::pair<std::string, BoneNode>& obj) {
+			return obj.second.boneIdx == idx;
+		});
+		if (it != boneNodeTable.end())
+			return it->first;
+		else
+			return std::string();
+	};
+	for (auto& ik : pmd.iks)
+	{
+		std::cout << "IKボーン番号=" << ik.boneIdx << ":" << get_name_from_idx(ik.boneIdx) << std::endl;
+		for (auto& node : ik.nodeIdxes)
+		{
+			std::cout << "\tノードボーン=" << node << ":" << get_name_from_idx(node) << std::endl;
+		}
+	}
 }
 
 void PMDActor::Update()

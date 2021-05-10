@@ -50,6 +50,15 @@ struct PMDBone
 };
 #pragma pack()
 
+struct PMDIK
+{
+	uint16_t boneIdx;
+	uint16_t targetIdx;
+	uint16_t iterations;
+	float limit;
+	std::vector<uint16_t> nodeIdxes;
+};
+
 struct PMD
 {
 	std::string filePath;
@@ -60,6 +69,7 @@ struct PMD
 	std::vector<unsigned short> indices;
 	std::vector<PMDMaterial> materials;
 	std::vector<PMDBone> bones;
+	std::vector<PMDIK> iks;
 };
 
 struct VMDMotion

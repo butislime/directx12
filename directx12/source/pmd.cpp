@@ -96,11 +96,31 @@ PMD LoadPMD(const std::string& path)
 	pmd.materials.resize(material_num);
 	fread(pmd.materials.data(), pmd.materials.size() * sizeof(PMDMaterial), 1, fp);
 
-	unsigned short bone_num= 0;
+	unsigned short bone_num = 0;
 	fread(&bone_num, sizeof(bone_num), 1, fp);
 	std::cout << "bone num:" << bone_num << std::endl;
 	pmd.bones.resize(bone_num);
 	fread(pmd.bones.data(), sizeof(PMDBone), bone_num, fp);
+
+	uint16_t ik_num = 0;
+	fread(&ik_num, sizeof(ik_num), 1, fp);
+	std::cout << "ik num:" << ik_num << std::endl;
+	pmd.iks.resize(ik_num);
+	for (auto& ik : pmd.iks)
+	{
+		fread(&ik.boneIdx, sizeof(ik.boneIdx), 1, fp);
+		fread(&ik.targetIdx, sizeof(ik.targetIdx), 1, fp);
+
+		uint8_t chain_len = 0;
+		fread(&chain_len, sizeof(chain_len), 1, fp);
+		ik.nodeIdxes.resize(chain_len);
+		fread(&ik.iterations, sizeof(ik.iterations), 1, fp);
+		fread(&ik.limit, sizeof(ik.limit), 1, fp);
+		
+		if (chain_len == 0)
+			continue;
+		fread(ik.nodeIdxes.data(), sizeof(ik.nodeIdxes[0]), chain_len, fp);
+	}
 
 	fclose(fp);
 
