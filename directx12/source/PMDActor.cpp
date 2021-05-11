@@ -4,6 +4,21 @@
 
 #include <iostream>
 
+namespace
+{
+	enum class BoneType
+	{
+		Rotation,      // 回転
+		RotAndMove,    // 回転&移動
+		IK,            // IK
+		Undefined,     // 未定義
+		IKChild,       // IK影響ボーン
+		RotationChild, // 回転影響ボーン
+		IKDestination, // IK接続先
+		Invisible,     // 見えないボーン
+	};
+}
+
 void* Transform::operator new(size_t size)
 {
 	return _aligned_malloc(size, 16);
@@ -31,6 +46,8 @@ void PMDActor::Init()
 	transform.world = DirectX::XMMatrixIdentity();
 	// bone convert
 	std::vector<std::string> bone_names(pmd.bones.size());
+	boneNameArray.resize(pmd.bones.size());
+	boneNodeAddressArray.resize(pmd.bones.size());
 	for (int idx = 0; idx < pmd.bones.size(); ++idx)
 	{
 		auto& pb = pmd.bones[idx];
@@ -38,6 +55,9 @@ void PMDActor::Init()
 		auto& node = boneNodeTable[pb.boneName];
 		node.boneIdx = idx;
 		node.startPos = pb.pos;
+
+		boneNameArray[idx] = pb.boneName;
+		boneNodeAddressArray[idx] = &node;
 	}
 	for (auto& pb : pmd.bones)
 	{
@@ -168,4 +188,89 @@ float PMDActor::GetYFromXOnBezier(float x, const DirectX::XMFLOAT2& a, const Dir
 	}
 	auto r = 1 - t;
 	return t * t * t + 3 * t * t * r * b.y + 3 * t * r * r * a.y;
+}
+
+void PMDActor::IKSolve()
+{
+	for (auto& ik : pmd.iks)
+	{
+		auto child_node_count = ik.nodeIdxes.size();
+
+		switch (child_node_count)
+		{
+		case 0:
+			// ありえない
+			assert(0);
+			continue;
+		case 1:
+			SolveLookAt(ik);
+			break;
+		case 2:
+			SolveCosineIK(ik);
+			break;
+		default:
+			SolveCCDIK(ik);
+			break;
+		}
+	}
+}
+
+//! Z軸を特定の方向に向ける
+DirectX::XMMATRIX LookAtMatrix(const DirectX::XMVECTOR& lookat, DirectX::XMFLOAT3& up, DirectX::XMFLOAT3& right)
+{
+	using namespace DirectX;
+	XMVECTOR vz = lookat;
+	// 仮のY軸
+	XMVECTOR vy = XMVector3Normalize(XMLoadFloat3(&up));
+	XMVECTOR vx = XMVector3Normalize(XMVector3Cross(vy, vz));
+	// zとxからy軸を計算
+	vy = XMVector3Normalize(XMVector3Cross(vz, vx));
+
+	// 同じ方向を向いてしまっていたらright基準で作り直し
+	if (std::abs(XMVector3Dot(vy, vz).m128_f32[0]) == 1.0f)
+	{
+		vx = XMVector3Normalize(XMLoadFloat3(&right));
+		vy = XMVector3Normalize(XMVector3Cross(vz, vx));
+		vx = XMVector3Normalize(XMVector3Cross(vy, vz));
+	}
+
+	XMMATRIX ret = XMMatrixIdentity();
+	ret.r[0] = vx;
+	ret.r[1] = vy;
+	ret.r[2] = vz;
+	return ret;
+}
+//! 特定のベクトルを特定の方向に向ける
+DirectX::XMMATRIX LookAtMatrix(const DirectX::XMVECTOR& origin, const DirectX::XMVECTOR& lookat, DirectX::XMFLOAT3& up, DirectX::XMFLOAT3& right)
+{
+	return DirectX::XMMatrixTranspose(LookAtMatrix(origin, up, right))
+		* LookAtMatrix(lookat, up, right);
+}
+
+void PMDActor::SolveLookAt(const PMDIK& ik)
+{
+	auto root_node = boneNodeAddressArray[ik.nodeIdxes[0]];
+	auto target_node = boneNodeAddressArray[ik.boneIdx];
+
+	using namespace DirectX;
+	auto rpos1 = XMLoadFloat3(&root_node->startPos);
+	auto tpos1 = XMLoadFloat3(&target_node->startPos);
+
+	auto rpos2 = XMVector3TransformCoord(rpos1, transform.boneMatrices[ik.nodeIdxes[0]]);
+	auto tpos2 = XMVector3TransformCoord(tpos1, transform.boneMatrices[ik.boneIdx]);
+
+	auto origin_vec = XMVectorSubtract(tpos1, rpos1);
+	auto target_vec = XMVectorSubtract(tpos2, rpos2);
+
+	origin_vec = XMVector3Normalize(origin_vec);
+	target_vec = XMVector3Normalize(target_vec);
+	auto up = XMFLOAT3(0, 1, 0);
+	auto right = XMFLOAT3(1, 0, 0);
+	transform.boneMatrices[ik.nodeIdxes[0]] = LookAtMatrix(origin_vec, target_vec, up, right);
+}
+void PMDActor::SolveCosineIK(const PMDIK& ik)
+{
+}
+void PMDActor::SolveCCDIK(const PMDIK& ik)
+{
 }

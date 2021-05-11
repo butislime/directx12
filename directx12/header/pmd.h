@@ -85,10 +85,11 @@ struct KeyFrame
 {
 	unsigned int frameNo;
 	DirectX::XMVECTOR quaternion;
+	DirectX::XMFLOAT3 offset;
 	DirectX::XMFLOAT2 p1, p2;
 
-	KeyFrame(unsigned int fno, DirectX::XMVECTOR& q, const DirectX::XMFLOAT2& ip1, const DirectX::XMFLOAT2& ip2)
-		: frameNo(fno), quaternion(q), p1(ip1), p2(ip2) {}
+	KeyFrame(unsigned int fno, DirectX::XMVECTOR& q, DirectX::XMFLOAT3 ofst, const DirectX::XMFLOAT2& ip1, const DirectX::XMFLOAT2& ip2)
+		: frameNo(fno), quaternion(q), offset(ofst), p1(ip1), p2(ip2) {}
 };
 
 struct VMD

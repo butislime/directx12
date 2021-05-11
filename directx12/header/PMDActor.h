@@ -29,7 +29,9 @@ struct Material
 
 struct BoneNode
 {
-	int boneIdx;
+	uint32_t boneIdx;
+	uint32_t boneType;
+	uint32_t ikParentBone;
 	DirectX::XMFLOAT3 startPos;
 	DirectX::XMFLOAT3 endPos;
 	std::vector<BoneNode*> children;
@@ -66,6 +68,15 @@ private:
 	void MotionUpdate();
 	float GetYFromXOnBezier(float x, const DirectX::XMFLOAT2& a, const DirectX::XMFLOAT2& b, uint8_t n);
 
+	void IKSolve();
+
+	//! CCD-IKによるボーン方向の解決(IK影響点が4つ以上)
+	void SolveCCDIK(const PMDIK& ik);
+	//! 余弦定理IKによるボーン方向の解決(IK影響点が3つ)
+	void SolveCosineIK(const PMDIK& ik);
+	//! LookAtによるボーン方向の解決(IK影響点が2つ)
+	void SolveLookAt(const PMDIK& ik);
+
 private:
 	PMD pmd;
 	VMD vmd;
@@ -74,6 +85,8 @@ private:
 
 	std::vector<Material> materials;
 	std::map<std::string, BoneNode> boneNodeTable;
+	std::vector<std::string> boneNameArray;
+	std::vector<BoneNode*> boneNodeAddressArray;
 
 	static const unsigned short BoneMax = 256;
 

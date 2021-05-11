@@ -154,7 +154,7 @@ VMD LoadVMD(const std::string& path)
 	for (auto& motion : vmd.motionData)
 	{
 		auto q = DirectX::XMLoadFloat4(&motion.quaternion);
-		vmd.keyFrames[motion.boneName].emplace_back(KeyFrame(motion.frameNo, q,
+		vmd.keyFrames[motion.boneName].emplace_back(KeyFrame(motion.frameNo, q, motion.location,
 			DirectX::XMFLOAT2((float)motion.bezier[3] / 127.0f, (float)motion.bezier[7] / 127.0f),
 			DirectX::XMFLOAT2((float)motion.bezier[11] / 127.0f, (float)motion.bezier[15] / 127.0f)));
 
