@@ -87,6 +87,7 @@ private:
 	std::map<std::string, BoneNode> boneNodeTable;
 	std::vector<std::string> boneNameArray;
 	std::vector<BoneNode*> boneNodeAddressArray;
+	std::vector<uint32_t> kneeIdxes;
 
 	static const unsigned short BoneMax = 256;
 
