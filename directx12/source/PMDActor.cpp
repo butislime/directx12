@@ -28,7 +28,7 @@ void* Transform::operator new(size_t size)
 void PMDActor::Init()
 {
 	static std::string strModelPath = "model/初音ミク.pmd";
-	static std::string strMotionPath = "motion/swing2.vmd";
+	static std::string strMotionPath = "motion/squat.vmd";
 	pmd = LoadPMD(strModelPath);
 	vmd = LoadVMD(strMotionPath);
 
@@ -134,6 +134,7 @@ void PMDActor::MotionUpdate()
 	elapsedTime = timeGetTime() - startTime;
 	unsigned int frame_no = 30 * (elapsedTime / 1000.0f);
 
+	std::cout << "frame=" << frame_no << " duration=" << vmd.durationFrame << std::endl;
 	if (frame_no > vmd.durationFrame)
 	{
 		startTime = timeGetTime();
@@ -172,6 +173,9 @@ void PMDActor::MotionUpdate()
 		transform.boneMatrices[node.boneIdx] = mat;
 	}
 	RecursiveMatrixMultiply(&boneNodeTable["センター"], DirectX::XMMatrixIdentity());
+
+	// ik
+	IKSolve();
 }
 
 float PMDActor::GetYFromXOnBezier(float x, const DirectX::XMFLOAT2& a, const DirectX::XMFLOAT2& b, uint8_t n)
@@ -282,11 +286,11 @@ void PMDActor::SolveCosineIK(const PMDIK& ik)
 	std::vector<XMVECTOR> positions; // ik点
 	std::array<float, 2> edge_lens; // ボーン間距離
 
-	auto& target_node = boneNodeAddressArray[ik.targetIdx];
+	auto& target_node = boneNodeAddressArray[ik.boneIdx];
 	auto target_pos = XMVector3Transform(XMLoadFloat3(&target_node->startPos), transform.boneMatrices[ik.boneIdx]);
 
 	// 末端
-	auto end_node = boneNodeAddressArray[ik.boneIdx];
+	auto end_node = boneNodeAddressArray[ik.targetIdx];
 	positions.emplace_back(XMLoadFloat3(&end_node->startPos));
 	for (auto& chain_bone_idx : ik.nodeIdxes)
 	{
@@ -343,4 +347,86 @@ void PMDActor::SolveCosineIK(const PMDIK& ik)
 }
 void PMDActor::SolveCCDIK(const PMDIK& ik)
 {
+	using namespace DirectX;
+	auto target_bone_node = boneNodeAddressArray[ik.boneIdx];
+	auto target_origin_pos = XMLoadFloat3(&target_bone_node->startPos);
+
+	auto parent_mat = transform.boneMatrices[boneNodeAddressArray[ik.boneIdx]->ikParentBone];
+	XMVECTOR det;
+	auto inv_parent_mat = XMMatrixInverse(&det, parent_mat);
+	auto target_next_pos = XMVector3Transform(target_origin_pos, transform.boneMatrices[ik.boneIdx] * inv_parent_mat);
+
+	// 末端位置
+	auto end_pos = XMLoadFloat3(&boneNodeAddressArray[ik.targetIdx]->startPos);
+	// 中間
+	std::vector<XMVECTOR> bone_positions;
+	for (auto& cidx : ik.nodeIdxes)
+	{
+		bone_positions.push_back(XMLoadFloat3(&boneNodeAddressArray[cidx]->startPos));
+	}
+	std::vector<XMMATRIX> mats(bone_positions.size());
+	std:fill(mats.begin(), mats.end(), XMMatrixIdentity());
+
+	// pmd特有
+	const auto ik_limit = ik.limit * XM_PI;
+	constexpr float epsilon = 0.0005f;
+	// 試行回数分実行
+	for (int c = 0; c < ik.iterations; ++c)
+	{
+		// ターゲットと末端がほぼ一致したら終わり
+		if (XMVector3Length(XMVectorSubtract(end_pos, target_next_pos)).m128_f32[0] <= epsilon)
+		{
+			break;
+		}
+
+		// 角度制限以内で近づけていく
+		for (int bidx = 0; bidx < bone_positions.size(); ++bidx)
+		{
+			const auto& pos = bone_positions[bidx];
+			auto vec_to_end = XMVectorSubtract(end_pos, pos); // 末端へ
+			auto vec_to_target = XMVectorSubtract(target_next_pos, pos); // ターゲットへ
+			vec_to_end = XMVector3Normalize(vec_to_end);
+			vec_to_target = XMVector3Normalize(vec_to_target);
+
+			// 外積できないので次へ
+			if (XMVector3Length(XMVectorSubtract(vec_to_end, vec_to_target)).m128_f32[0] < epsilon)
+			{
+				continue;
+			}
+
+			auto cross = XMVector3Normalize(XMVector3Cross(vec_to_end, vec_to_target));
+			auto angle = XMVector3AngleBetweenVectors(vec_to_end, vec_to_target).m128_f32[0];
+			angle = std::min<float>(angle, ik_limit); // 制限
+			XMMATRIX rot = XMMatrixRotationAxis(cross, angle);
+
+			auto mat = XMMatrixTranslationFromVector(-pos)
+				* rot
+				* XMMatrixTranslationFromVector(pos);
+			mats[bidx] *= mat;
+			// 現在のボーン以下を回転
+			for (auto idx = bidx - 1; idx >= 0; --idx)
+			{
+				bone_positions[idx] = XMVector3Transform(bone_positions[idx], mat);
+			}
+
+			end_pos = XMVector2Transform(end_pos, mat);
+
+			// ターゲットと末端がほぼ一致したら終わり
+			if (XMVector3Length(XMVectorSubtract(end_pos, target_next_pos)).m128_f32[0] <= epsilon)
+			{
+				break;
+			}
+		}
+	}
+
+	int idx = 0;
+	for (auto& cidx : ik.nodeIdxes)
+	{
+		transform.boneMatrices[cidx] = mats[idx];
+		++idx;
+	}
+
+	// 適用
+	auto root_node = boneNodeAddressArray[ik.nodeIdxes.back()];
+	RecursiveMatrixMultiply(root_node, parent_mat);
 }
