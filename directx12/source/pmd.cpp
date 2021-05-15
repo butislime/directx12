@@ -168,6 +168,50 @@ VMD LoadVMD(const std::string& path)
 		});
 	}
 
+	uint32_t morph_num = 0;
+	fread(&morph_num, sizeof(morph_num), 1, fp);
+	vmd.morphs.resize(morph_num);
+	fread(vmd.morphs.data(), sizeof(VMDMorph), morph_num, fp);
+
+	uint32_t camera_num = 0;
+	fread(&camera_num, sizeof(camera_num), 1, fp);
+	vmd.cameras.resize(camera_num);
+	fread(vmd.cameras.data(), sizeof(VMDCamera), camera_num, fp);
+
+	uint32_t light_num = 0;
+	fread(&light_num, sizeof(light_num), 1, fp);
+	vmd.lights.resize(light_num);
+	fread(vmd.lights.data(), sizeof(VMDLight), light_num, fp);
+
+	uint32_t self_shadow_num = 0;
+	fread(&self_shadow_num, sizeof(self_shadow_num), 1, fp);
+	vmd.selfShadows.resize(self_shadow_num);
+	fread(vmd.selfShadows.data(), sizeof(VMDSelfShadow), self_shadow_num, fp);
+
+	uint32_t ik_switch_num = 0;
+	fread(&ik_switch_num, sizeof(ik_switch_num), 1, fp);
+	vmd.ikEnables.resize(ik_switch_num);
+	for (auto& ik_enable : vmd.ikEnables)
+	{
+		fread(&ik_enable.frameNo, sizeof(ik_enable.frameNo), 1, fp);
+
+		uint8_t visible_flag = 0;
+		fread(&visible_flag, sizeof(visible_flag), 1, fp);
+
+		uint32_t ik_bone_count = 0;
+		fread(&ik_bone_count, sizeof(ik_bone_count), 1, fp);
+
+		for (int i = 0; i < ik_bone_count; ++i)
+		{
+			char ik_bone_name[20];
+			fread(ik_bone_name, _countof(ik_bone_name), 1, fp);
+
+			uint8_t flag = 0;
+			fread(&flag, sizeof(flag), 1, fp);
+			ik_enable.ikEnableTable[ik_bone_name] = flag;
+		}
+	}
+
 	fclose(fp);
 
 	return vmd;

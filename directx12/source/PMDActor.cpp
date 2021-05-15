@@ -175,7 +175,7 @@ void PMDActor::MotionUpdate()
 	RecursiveMatrixMultiply(&boneNodeTable["ÉZÉìÉ^Å["], DirectX::XMMatrixIdentity());
 
 	// ik
-	IKSolve();
+	IKSolve(frame_no);
 }
 
 float PMDActor::GetYFromXOnBezier(float x, const DirectX::XMFLOAT2& a, const DirectX::XMFLOAT2& b, uint8_t n)
@@ -202,10 +202,25 @@ float PMDActor::GetYFromXOnBezier(float x, const DirectX::XMFLOAT2& a, const Dir
 	return t * t * t + 3 * t * t * r * b.y + 3 * t * r * r * a.y;
 }
 
-void PMDActor::IKSolve()
+void PMDActor::IKSolve(uint32_t frame_no)
 {
+	auto it = std::find_if(vmd.ikEnables.rbegin(), vmd.ikEnables.rend(), [frame_no](const VMDIKEnable& ik_enable)
+		{
+			return ik_enable.frameNo <= frame_no;
+		});
 	for (auto& ik : pmd.iks)
 	{
+		if (it != vmd.ikEnables.rend())
+		{
+			auto ik_enable_it = it->ikEnableTable.find(boneNameArray[ik.boneIdx]);
+			if (ik_enable_it != it->ikEnableTable.end())
+			{
+				// ikñ≥å¯
+				if (!ik_enable_it->second)
+					continue;
+			}
+		}
+
 		auto child_node_count = ik.nodeIdxes.size();
 
 		switch (child_node_count)
@@ -215,10 +230,10 @@ void PMDActor::IKSolve()
 			assert(0);
 			continue;
 		case 1:
-			SolveLookAt(ik);
+			//SolveLookAt(ik);
 			break;
 		case 2:
-			SolveCosineIK(ik);
+			//SolveCosineIK(ik);
 			break;
 		default:
 			SolveCCDIK(ik);
@@ -262,7 +277,7 @@ DirectX::XMMATRIX LookAtMatrix(const DirectX::XMVECTOR& origin, const DirectX::X
 void PMDActor::SolveLookAt(const PMDIK& ik)
 {
 	auto root_node = boneNodeAddressArray[ik.nodeIdxes[0]];
-	auto target_node = boneNodeAddressArray[ik.boneIdx];
+	auto target_node = boneNodeAddressArray[ik.targetIdx];
 
 	using namespace DirectX;
 	auto rpos1 = XMLoadFloat3(&root_node->startPos);

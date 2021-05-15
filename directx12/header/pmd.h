@@ -92,11 +92,60 @@ struct KeyFrame
 		: frameNo(fno), quaternion(q), offset(ofst), p1(ip1), p2(ip2) {}
 };
 
+#pragma pack(1)
+struct VMDMorph
+{
+	char name[15];
+	uint32_t frameNo;
+	float weight;
+};
+#pragma pack()
+
+#pragma pack(1)
+struct VMDCamera
+{
+	uint32_t frameNo;
+	float distance;
+	DirectX::XMFLOAT3 pos;
+	DirectX::XMFLOAT3 eulerAngle;
+	uint8_t interpolation[24];
+	uint32_t fov;
+	uint8_t persFlg;
+};
+#pragma pack()
+
+struct VMDLight
+{
+	uint32_t frameNo;
+	DirectX::XMFLOAT3 rgb;
+	DirectX::XMFLOAT3 vec;
+};
+
+#pragma pack(1)
+struct VMDSelfShadow
+{
+	uint32_t frameNo;
+	uint8_t mode;
+	float distance;
+};
+#pragma pack()
+
+struct VMDIKEnable
+{
+	uint32_t frameNo;
+	std::unordered_map<std::string, bool> ikEnableTable;
+};
+
 struct VMD
 {
 	std::vector<VMDMotion> motionData;
 	std::unordered_map<std::string, std::vector<KeyFrame>> keyFrames;
 	unsigned int durationFrame = 0;
+	std::vector<VMDMorph> morphs;
+	std::vector<VMDCamera> cameras;
+	std::vector<VMDLight> lights;
+	std::vector<VMDSelfShadow> selfShadows;
+	std::vector<VMDIKEnable> ikEnables;
 };
 
 std::string GetTexturePathFromModelAndTexPath(const std::string& modelPath, const char* texPath);

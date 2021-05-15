@@ -68,7 +68,7 @@ private:
 	void MotionUpdate();
 	float GetYFromXOnBezier(float x, const DirectX::XMFLOAT2& a, const DirectX::XMFLOAT2& b, uint8_t n);
 
-	void IKSolve();
+	void IKSolve(uint32_t frame_no);
 
 	//! CCD-IK‚É‚æ‚éƒ{[ƒ“•ûŒü‚Ì‰ğŒˆ(IK‰e‹¿“_‚ª4‚ÂˆÈã)
 	void SolveCCDIK(const PMDIK& ik);
