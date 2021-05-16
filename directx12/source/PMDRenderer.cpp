@@ -238,7 +238,7 @@ void PMDRenderer::Init(ms::ComPtr<ID3D12Device> device, std::shared_ptr<PMDActor
 
 	// matrix
 	// view
-	DirectX::XMFLOAT3 eye(0, 10, -15);
+	DirectX::XMFLOAT3 eye(0, 15, -30);
 	DirectX::XMFLOAT3 target(0, 10, 0);
 	DirectX::XMFLOAT3 up(0, 1, 0);
 	DirectX::XMMATRIX viewMat = DirectX::XMMatrixLookAtLH(
@@ -250,7 +250,7 @@ void PMDRenderer::Init(ms::ComPtr<ID3D12Device> device, std::shared_ptr<PMDActor
 	auto window_height = Application::Instance().GetWindowHeight();
 	// projection
 	DirectX::XMMATRIX projMat = DirectX::XMMatrixPerspectiveFovLH(
-		DirectX::XM_PIDIV2,
+		DirectX::XM_PIDIV4,
 		static_cast<float>(window_width) / static_cast<float>(window_height),
 		1.0f, // near
 		100.0f // far

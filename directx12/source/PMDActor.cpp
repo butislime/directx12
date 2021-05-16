@@ -56,7 +56,10 @@ void PMDActor::Init()
 		bone_names[idx] = pb.boneName;
 		auto& node = boneNodeTable[pb.boneName];
 		node.boneIdx = idx;
+		node.boneType = pb.type;
 		node.startPos = pb.pos;
+		node.ikParentBone = pb.parentNo;
+		node.ikParentBone = pb.ikBoneNo;
 
 		boneNameArray[idx] = pb.boneName;
 		boneNodeAddressArray[idx] = &node;
@@ -134,7 +137,6 @@ void PMDActor::MotionUpdate()
 	elapsedTime = timeGetTime() - startTime;
 	unsigned int frame_no = 30 * (elapsedTime / 1000.0f);
 
-	std::cout << "frame=" << frame_no << " duration=" << vmd.durationFrame << std::endl;
 	if (frame_no > vmd.durationFrame)
 	{
 		startTime = timeGetTime();
@@ -153,13 +155,15 @@ void PMDActor::MotionUpdate()
 		if (rit == motions.rend())
 			continue;
 
-		DirectX::XMMATRIX rotation;
+		DirectX::XMMATRIX rotation = DirectX::XMMatrixIdentity();
+		DirectX::XMVECTOR offset = DirectX::XMLoadFloat3(&rit->offset);
 		auto it = rit.base();
 		if (it != motions.end())
 		{
 			auto t = static_cast<float>(frame_no - rit->frameNo) / static_cast<float>(it->frameNo - rit->frameNo);
 			t = GetYFromXOnBezier(t, it->p1, it->p2, 12);
 			rotation = DirectX::XMMatrixRotationQuaternion(DirectX::XMQuaternionSlerp(rit->quaternion, it->quaternion, t));
+			offset = DirectX::XMVectorLerp(offset, XMLoadFloat3(&it->offset), t);
 		}
 		else
 		{
@@ -170,7 +174,7 @@ void PMDActor::MotionUpdate()
 		auto mat = DirectX::XMMatrixTranslation(-pos.x, -pos.y, -pos.z)
 			* rotation
 			* DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z);
-		transform.boneMatrices[node.boneIdx] = mat;
+		transform.boneMatrices[node.boneIdx] = mat * DirectX::XMMatrixTranslationFromVector(offset);
 	}
 	RecursiveMatrixMultiply(&boneNodeTable["ÉZÉìÉ^Å["], DirectX::XMMatrixIdentity());
 
@@ -230,10 +234,10 @@ void PMDActor::IKSolve(uint32_t frame_no)
 			assert(0);
 			continue;
 		case 1:
-			//SolveLookAt(ik);
+			SolveLookAt(ik);
 			break;
 		case 2:
-			//SolveCosineIK(ik);
+			SolveCosineIK(ik);
 			break;
 		default:
 			SolveCCDIK(ik);
