@@ -428,7 +428,7 @@ void PMDActor::SolveCCDIK(const PMDIK& ik)
 				bone_positions[idx] = XMVector3Transform(bone_positions[idx], mat);
 			}
 
-			end_pos = XMVector2Transform(end_pos, mat);
+			end_pos = XMVector3Transform(end_pos, mat);
 
 			// ターゲットと末端がほぼ一致したら終わり
 			if (XMVector3Length(XMVectorSubtract(end_pos, target_next_pos)).m128_f32[0] <= epsilon)
