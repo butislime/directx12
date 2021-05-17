@@ -112,6 +112,48 @@ bool DirectXWrapper::Init(HWND hwnd)
 
 	hresult = device->CreateFence(fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(fence.ReleaseAndGetAddressOf()));
 
+	{
+		// 作成済みのヒープからもう1枚作成
+		auto heap_desc = rtvHeaps->GetDesc();
+		// バックバッファの情報を利用
+		auto& back_buff = backBuffers[0];
+		auto res_desc = back_buff->GetDesc();
+
+		auto heap_prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+		float clear_color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+		auto clear_value = CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM, clear_color);
+
+		hresult = device->CreateCommittedResource(&heap_prop, D3D12_HEAP_FLAG_NONE, &res_desc,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, // D3D12_RESOURCE_STATE_RENDER_TARGETではない
+			&clear_value, IID_PPV_ARGS(peraResource.ReleaseAndGetAddressOf()));
+
+		// rtv用ヒープ
+		heap_desc.NumDescriptors = 1;
+		hresult = device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(peraRTVHeap.ReleaseAndGetAddressOf()));
+
+		D3D12_RENDER_TARGET_VIEW_DESC rtv_desc = {};
+		rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+		rtv_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+		// rtv作成
+		device->CreateRenderTargetView(peraResource.Get(), &rtvDesc, peraRTVHeap->GetCPUDescriptorHandleForHeapStart());
+
+		// srv用ヒープ
+		heap_desc.NumDescriptors = 1;
+		heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		hresult = device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(peraSRVHeap.ReleaseAndGetAddressOf()));
+
+		D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+		srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srv_desc.Format = rtv_desc.Format;
+		srv_desc.Texture2D.MipLevels = 1;
+		srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+		// srv作成
+		device->CreateShaderResourceView(peraResource.Get(), &srv_desc, peraSRVHeap->GetCPUDescriptorHandleForHeapStart());
+	}
+
 	// 深度バッファ
 	D3D12_RESOURCE_DESC depthResDesc = {};
 	depthResDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -185,6 +227,18 @@ void DirectXWrapper::BeginDraw()
 	swapchainBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET; // render target
 	cmdList->ResourceBarrier(1, &swapchainBarrier);
 
+	/*
+	// 1パス目
+	auto rtvH = peraRTVHeap->GetCPUDescriptorHandleForHeapStart();
+	auto dsvHandle = dsvHeap->GetCPUDescriptorHandleForHeapStart();
+	cmdList->OMSetRenderTargets(1, &rtvH, false, &dsvHandle);
+
+	auto transition = CD3DX12_RESOURCE_BARRIER::Transition(peraResource.Get(),
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_RENDER_TARGET);
+	cmdList->ResourceBarrier(1, &transition);
+	*/
+
 	auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
 	rtvH.ptr += bbIdx * device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	auto dsvHandle = dsvHeap->GetCPUDescriptorHandleForHeapStart();
@@ -200,6 +254,13 @@ void DirectXWrapper::BeginDraw()
 }
 void DirectXWrapper::EndDraw()
 {
+	/*
+	auto transition = CD3DX12_RESOURCE_BARRIER::Transition(peraResource.Get(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	cmdList->ResourceBarrier(1, &transition);
+	*/
+
 	swapchainBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET; // render target
 	swapchainBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT; // present
 	cmdList->ResourceBarrier(1, &swapchainBarrier);

@@ -27,6 +27,10 @@ private:
 	ms::ComPtr<ID3D12DescriptorHeap> rtvHeaps = nullptr;
 	ms::ComPtr<ID3D12DescriptorHeap> dsvHeap = nullptr;
 
+	ms::ComPtr<ID3D12Resource> peraResource = nullptr;
+	ms::ComPtr<ID3D12DescriptorHeap> peraRTVHeap = nullptr;
+	ms::ComPtr<ID3D12DescriptorHeap> peraSRVHeap = nullptr;
+
 	D3D12_VIEWPORT viewport = {};
 	D3D12_RECT scissorRect = {};
 
