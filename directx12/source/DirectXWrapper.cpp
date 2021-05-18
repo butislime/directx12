@@ -1,5 +1,6 @@
 #include <DirectXWrapper.h>
 #include <d3dx12.h>
+#include <d3dcompiler.h>
 
 #include <iostream>
 
@@ -212,6 +213,102 @@ bool DirectXWrapper::Init(HWND hwnd)
 	scissorRect.right = scissorRect.left + Application::Instance().GetWindowWidth();
 	scissorRect.bottom = scissorRect.top + Application::Instance().GetWindowHeight();
 
+	{
+		struct Vertex
+		{
+			DirectX::XMFLOAT3 pos;
+			DirectX::XMFLOAT2 uv;
+		};
+		Vertex vert[4] =
+		{
+			{{-1, -1, 0.1f}, {0, 1}},
+			{{-1,  1, 0.1f}, {0, 0}},
+			{{ 1, -1, 0.1f}, {1, 1}},
+			{{ 1,  1, 0.1f}, {1, 0}}
+		};
+		auto heap_prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+		auto resource_desc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(vert));
+		hresult = device->CreateCommittedResource(&heap_prop, D3D12_HEAP_FLAG_NONE, &resource_desc,
+			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(quadVB.ReleaseAndGetAddressOf()));
+
+		quadVBView.BufferLocation = quadVB->GetGPUVirtualAddress();
+		quadVBView.SizeInBytes = sizeof(vert);
+		quadVBView.StrideInBytes = sizeof(Vertex);
+
+		Vertex* mapped_quad = nullptr;
+		quadVB->Map(0, nullptr, (void**)&mapped_quad);
+		std::copy(std::begin(vert), std::end(vert), mapped_quad);
+		quadVB->Unmap(0, nullptr);
+
+		D3D12_INPUT_ELEMENT_DESC layout[2] =
+		{
+			{
+				"POSITION",
+				0,
+				DXGI_FORMAT_R32G32B32_FLOAT,
+				0,
+				D3D12_APPEND_ALIGNED_ELEMENT,
+				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+				0
+			},
+			{
+				"TEXCOORD",
+				0,
+				DXGI_FORMAT_R32G32_FLOAT,
+				0,
+				D3D12_APPEND_ALIGNED_ELEMENT,
+				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+				0
+			},
+		};
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC gps_desc = {};
+		gps_desc.InputLayout.NumElements = _countof(layout);
+		gps_desc.InputLayout.pInputElementDescs = layout;
+
+		ms::ComPtr<ID3DBlob> vs;
+		ms::ComPtr<ID3DBlob> ps;
+		ms::ComPtr<ID3DBlob> error_blob;
+
+		hresult = D3DCompileFromFile(
+			L"QuadVertexShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
+			"VS", "vs_5_0", 0, 0,
+			vs.ReleaseAndGetAddressOf(), error_blob.ReleaseAndGetAddressOf()
+		);
+		hresult = D3DCompileFromFile(
+			L"QuadPixelShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
+			"PS", "ps_5_0", 0, 0,
+			ps.ReleaseAndGetAddressOf(), error_blob.ReleaseAndGetAddressOf()
+		);
+		gps_desc.VS = CD3DX12_SHADER_BYTECODE(vs.Get());
+		gps_desc.PS = CD3DX12_SHADER_BYTECODE(ps.Get());
+
+		gps_desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+		gps_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		gps_desc.NumRenderTargets = 1;
+		gps_desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+		gps_desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+		gps_desc.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
+		gps_desc.SampleDesc.Count = 1;
+		gps_desc.SampleDesc.Quality = 0;
+		gps_desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+
+		D3D12_ROOT_SIGNATURE_DESC root_sign_desc = {};
+		root_sign_desc.NumParameters = 0;
+		root_sign_desc.NumStaticSamplers = 0;
+		root_sign_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+		ms::ComPtr<ID3DBlob> root_sign_blob;
+		hresult = D3D12SerializeRootSignature(
+			&root_sign_desc, D3D_ROOT_SIGNATURE_VERSION_1,
+			root_sign_blob.ReleaseAndGetAddressOf(), error_blob.ReleaseAndGetAddressOf()
+		);
+		hresult = device->CreateRootSignature(0,
+			root_sign_blob->GetBufferPointer(), root_sign_blob->GetBufferSize(), IID_PPV_ARGS(quadRootSignature.ReleaseAndGetAddressOf()));
+
+		gps_desc.pRootSignature = quadRootSignature.Get();
+		hresult = device->CreateGraphicsPipelineState(&gps_desc, IID_PPV_ARGS(quadPipeline.ReleaseAndGetAddressOf()));
+	}
+
 	return true;
 }
 void DirectXWrapper::BeginDraw()
@@ -227,7 +324,6 @@ void DirectXWrapper::BeginDraw()
 	swapchainBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET; // render target
 	cmdList->ResourceBarrier(1, &swapchainBarrier);
 
-	/*
 	// 1ƒpƒX–Ú
 	auto rtvH = peraRTVHeap->GetCPUDescriptorHandleForHeapStart();
 	auto dsvHandle = dsvHeap->GetCPUDescriptorHandleForHeapStart();
@@ -237,12 +333,13 @@ void DirectXWrapper::BeginDraw()
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		D3D12_RESOURCE_STATE_RENDER_TARGET);
 	cmdList->ResourceBarrier(1, &transition);
-	*/
 
+	/*
 	auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
 	rtvH.ptr += bbIdx * device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	auto dsvHandle = dsvHeap->GetCPUDescriptorHandleForHeapStart();
 	cmdList->OMSetRenderTargets(1, &rtvH, true, &dsvHandle);
+	*/
 
 	// clear
 	float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -254,16 +351,16 @@ void DirectXWrapper::BeginDraw()
 }
 void DirectXWrapper::EndDraw()
 {
-	/*
 	auto transition = CD3DX12_RESOURCE_BARRIER::Transition(peraResource.Get(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	cmdList->ResourceBarrier(1, &transition);
-	*/
 
+	/*
 	swapchainBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET; // render target
 	swapchainBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT; // present
 	cmdList->ResourceBarrier(1, &swapchainBarrier);
+	*/
 
 	// –½—ß‚ÌI—¹
 	cmdList->Close();

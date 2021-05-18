@@ -31,6 +31,11 @@ private:
 	ms::ComPtr<ID3D12DescriptorHeap> peraRTVHeap = nullptr;
 	ms::ComPtr<ID3D12DescriptorHeap> peraSRVHeap = nullptr;
 
+	ms::ComPtr<ID3D12Resource> quadVB = nullptr;
+	D3D12_VERTEX_BUFFER_VIEW quadVBView = {};
+	ms::ComPtr<ID3D12RootSignature> quadRootSignature = nullptr;
+	ms::ComPtr<ID3D12PipelineState> quadPipeline = nullptr;
+
 	D3D12_VIEWPORT viewport = {};
 	D3D12_RECT scissorRect = {};
 
