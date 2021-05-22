@@ -127,10 +127,12 @@ bool DirectXWrapper::Init(HWND hwnd)
 		hresult = device->CreateCommittedResource(&heap_prop, D3D12_HEAP_FLAG_NONE, &res_desc,
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, // D3D12_RESOURCE_STATE_RENDER_TARGETではない
 			&clear_value, IID_PPV_ARGS(peraResource.ReleaseAndGetAddressOf()));
+		std::cout << "Quad CreateQuadResource res=" << hresult << std::endl;
 
 		// rtv用ヒープ
 		heap_desc.NumDescriptors = 1;
 		hresult = device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(peraRTVHeap.ReleaseAndGetAddressOf()));
+		std::cout << "Quad CreateRTVHeap res=" << hresult << std::endl;
 
 		D3D12_RENDER_TARGET_VIEW_DESC rtv_desc = {};
 		rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
@@ -144,6 +146,7 @@ bool DirectXWrapper::Init(HWND hwnd)
 		heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		hresult = device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(peraSRVHeap.ReleaseAndGetAddressOf()));
+		std::cout << "Quad CreateSRVHeap res=" << hresult << std::endl;
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
 		srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
@@ -230,6 +233,7 @@ bool DirectXWrapper::Init(HWND hwnd)
 		auto resource_desc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(vert));
 		hresult = device->CreateCommittedResource(&heap_prop, D3D12_HEAP_FLAG_NONE, &resource_desc,
 			D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(quadVB.ReleaseAndGetAddressOf()));
+		std::cout << "Quad CreateCommittedResource res=" << hresult << std::endl;
 
 		quadVBView.BufferLocation = quadVB->GetGPUVirtualAddress();
 		quadVBView.SizeInBytes = sizeof(vert);
@@ -270,15 +274,17 @@ bool DirectXWrapper::Init(HWND hwnd)
 		ms::ComPtr<ID3DBlob> error_blob;
 
 		hresult = D3DCompileFromFile(
-			L"QuadVertexShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
-			"VS", "vs_5_0", 0, 0,
+			L"shader/QuadVertexShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
+			"main", "vs_5_0", 0, 0,
 			vs.ReleaseAndGetAddressOf(), error_blob.ReleaseAndGetAddressOf()
 		);
+		std::cout << "shader compile QuadVertexShader.hlsl res=" << hresult << " not found=" << HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND) << std::endl;
 		hresult = D3DCompileFromFile(
-			L"QuadPixelShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
-			"PS", "ps_5_0", 0, 0,
+			L"shader/QuadPixelShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE,
+			"main", "ps_5_0", 0, 0,
 			ps.ReleaseAndGetAddressOf(), error_blob.ReleaseAndGetAddressOf()
 		);
+		std::cout << "shader compile QuadPixelShader.hlsl res=" << hresult << std::endl;
 		gps_desc.VS = CD3DX12_SHADER_BYTECODE(vs.Get());
 		gps_desc.PS = CD3DX12_SHADER_BYTECODE(ps.Get());
 
@@ -302,17 +308,45 @@ bool DirectXWrapper::Init(HWND hwnd)
 			&root_sign_desc, D3D_ROOT_SIGNATURE_VERSION_1,
 			root_sign_blob.ReleaseAndGetAddressOf(), error_blob.ReleaseAndGetAddressOf()
 		);
+		std::cout << "Quad SerializeRootSignature res=" << hresult << std::endl;
 		hresult = device->CreateRootSignature(0,
 			root_sign_blob->GetBufferPointer(), root_sign_blob->GetBufferSize(), IID_PPV_ARGS(quadRootSignature.ReleaseAndGetAddressOf()));
+		std::cout << "Quad CreateRootSignature res=" << hresult << std::endl;
 
 		gps_desc.pRootSignature = quadRootSignature.Get();
 		hresult = device->CreateGraphicsPipelineState(&gps_desc, IID_PPV_ARGS(quadPipeline.ReleaseAndGetAddressOf()));
+		std::cout << "Quad CreateGraphicsPipelineState res=" << hresult << std::endl;
 	}
 
 	return true;
 }
 void DirectXWrapper::BeginDraw()
 {
+	// 1パス目
+	{
+		auto transition = CD3DX12_RESOURCE_BARRIER::Transition(peraResource.Get(),
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_RENDER_TARGET);
+		cmdList->ResourceBarrier(1, &transition);
+
+		auto rtvH = peraRTVHeap->GetCPUDescriptorHandleForHeapStart();
+		auto dsvHandle = dsvHeap->GetCPUDescriptorHandleForHeapStart();
+		cmdList->OMSetRenderTargets(1, &rtvH, false, &dsvHandle);
+
+		// clear
+		float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+		cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+		cmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f/*最大深度*/, 0, 0, nullptr);
+
+		cmdList->RSSetViewports(1, &viewport);
+		cmdList->RSSetScissorRects(1, &scissorRect);
+
+		transition = CD3DX12_RESOURCE_BARRIER::Transition(peraResource.Get(),
+			D3D12_RESOURCE_STATE_RENDER_TARGET,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		cmdList->ResourceBarrier(1, &transition);
+	}
+
 	auto bbIdx = swapchain->GetCurrentBackBufferIndex();
 
 	swapchainBarrier = {};
@@ -324,43 +358,24 @@ void DirectXWrapper::BeginDraw()
 	swapchainBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET; // render target
 	cmdList->ResourceBarrier(1, &swapchainBarrier);
 
-	// 1パス目
-	auto rtvH = peraRTVHeap->GetCPUDescriptorHandleForHeapStart();
-	auto dsvHandle = dsvHeap->GetCPUDescriptorHandleForHeapStart();
-	cmdList->OMSetRenderTargets(1, &rtvH, false, &dsvHandle);
+	{
+		auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
+		rtvH.ptr += bbIdx * device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		auto dsvHandle = dsvHeap->GetCPUDescriptorHandleForHeapStart();
+		cmdList->OMSetRenderTargets(1, &rtvH, true, &dsvHandle);
+	}
 
-	auto transition = CD3DX12_RESOURCE_BARRIER::Transition(peraResource.Get(),
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		D3D12_RESOURCE_STATE_RENDER_TARGET);
-	cmdList->ResourceBarrier(1, &transition);
-
-	/*
-	auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
-	rtvH.ptr += bbIdx * device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	auto dsvHandle = dsvHeap->GetCPUDescriptorHandleForHeapStart();
-	cmdList->OMSetRenderTargets(1, &rtvH, true, &dsvHandle);
-	*/
-
-	// clear
-	float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
-	cmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f/*最大深度*/, 0, 0, nullptr);
-
-	cmdList->RSSetViewports(1, &viewport);
-	cmdList->RSSetScissorRects(1, &scissorRect);
+	cmdList->SetGraphicsRootSignature(quadRootSignature.Get());
+	cmdList->SetPipelineState(quadPipeline.Get());
+	cmdList->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+	cmdList->IASetVertexBuffers(0, 1, &quadVBView);
+	cmdList->DrawInstanced(4, 1, 0, 0);
 }
 void DirectXWrapper::EndDraw()
 {
-	auto transition = CD3DX12_RESOURCE_BARRIER::Transition(peraResource.Get(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	cmdList->ResourceBarrier(1, &transition);
-
-	/*
 	swapchainBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET; // render target
 	swapchainBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT; // present
 	cmdList->ResourceBarrier(1, &swapchainBarrier);
-	*/
 
 	// 命令の終了
 	cmdList->Close();
