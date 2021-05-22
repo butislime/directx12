@@ -265,6 +265,20 @@ bool DirectXWrapper::Init(HWND hwnd)
 				0
 			},
 		};
+
+		D3D12_DESCRIPTOR_RANGE range = {};
+		range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // t
+		range.BaseShaderRegister = 0; // 0
+		range.NumDescriptors = 1;
+
+		D3D12_ROOT_PARAMETER root_param = {};
+		root_param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		root_param.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		root_param.DescriptorTable.pDescriptorRanges = &range;
+		root_param.DescriptorTable.NumDescriptorRanges = 1;
+
+		D3D12_STATIC_SAMPLER_DESC sampler = CD3DX12_STATIC_SAMPLER_DESC(0);
+
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC gps_desc = {};
 		gps_desc.InputLayout.NumElements = _countof(layout);
 		gps_desc.InputLayout.pInputElementDescs = layout;
@@ -299,8 +313,10 @@ bool DirectXWrapper::Init(HWND hwnd)
 		gps_desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 
 		D3D12_ROOT_SIGNATURE_DESC root_sign_desc = {};
-		root_sign_desc.NumParameters = 0;
-		root_sign_desc.NumStaticSamplers = 0;
+		root_sign_desc.NumParameters = 1;
+		root_sign_desc.pParameters = &root_param;
+		root_sign_desc.NumStaticSamplers = 1;
+		root_sign_desc.pStaticSamplers = &sampler;
 		root_sign_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 		ms::ComPtr<ID3DBlob> root_sign_blob;
@@ -320,33 +336,35 @@ bool DirectXWrapper::Init(HWND hwnd)
 
 	return true;
 }
-void DirectXWrapper::BeginDraw()
+void DirectXWrapper::BeginPeraDraw()
 {
 	// 1ƒpƒX–Ú
-	{
-		auto transition = CD3DX12_RESOURCE_BARRIER::Transition(peraResource.Get(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_RENDER_TARGET);
-		cmdList->ResourceBarrier(1, &transition);
+	auto transition = CD3DX12_RESOURCE_BARRIER::Transition(peraResource.Get(),
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_RENDER_TARGET);
+	cmdList->ResourceBarrier(1, &transition);
 
-		auto rtvH = peraRTVHeap->GetCPUDescriptorHandleForHeapStart();
-		auto dsvHandle = dsvHeap->GetCPUDescriptorHandleForHeapStart();
-		cmdList->OMSetRenderTargets(1, &rtvH, false, &dsvHandle);
+	auto rtvH = peraRTVHeap->GetCPUDescriptorHandleForHeapStart();
+	auto dsvHandle = dsvHeap->GetCPUDescriptorHandleForHeapStart();
+	cmdList->OMSetRenderTargets(1, &rtvH, false, &dsvHandle);
 
-		// clear
-		float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-		cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
-		cmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f/*Å‘å[“x*/, 0, 0, nullptr);
+	// clear
+	float clear_color[] = { 0.5f, 0.5f, 0.5f, 1.0f };
+	cmdList->ClearRenderTargetView(rtvH, clear_color, 0, nullptr);
+	cmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f/*Å‘å[“x*/, 0, 0, nullptr);
 
-		cmdList->RSSetViewports(1, &viewport);
-		cmdList->RSSetScissorRects(1, &scissorRect);
-
-		transition = CD3DX12_RESOURCE_BARRIER::Transition(peraResource.Get(),
-			D3D12_RESOURCE_STATE_RENDER_TARGET,
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-		cmdList->ResourceBarrier(1, &transition);
-	}
-
+	cmdList->RSSetViewports(1, &viewport);
+	cmdList->RSSetScissorRects(1, &scissorRect);
+}
+void DirectXWrapper::EndPeraDraw()
+{
+	auto transition = CD3DX12_RESOURCE_BARRIER::Transition(peraResource.Get(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	cmdList->ResourceBarrier(1, &transition);
+}
+void DirectXWrapper::BeginDraw()
+{
 	auto bbIdx = swapchain->GetCurrentBackBufferIndex();
 
 	swapchainBarrier = {};
@@ -358,14 +376,24 @@ void DirectXWrapper::BeginDraw()
 	swapchainBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET; // render target
 	cmdList->ResourceBarrier(1, &swapchainBarrier);
 
-	{
-		auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
-		rtvH.ptr += bbIdx * device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-		auto dsvHandle = dsvHeap->GetCPUDescriptorHandleForHeapStart();
-		cmdList->OMSetRenderTargets(1, &rtvH, true, &dsvHandle);
-	}
+	auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
+	rtvH.ptr += bbIdx * device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	auto dsvHandle = dsvHeap->GetCPUDescriptorHandleForHeapStart();
+	cmdList->OMSetRenderTargets(1, &rtvH, false, &dsvHandle);
+
+	cmdList->RSSetViewports(1, &viewport);
+	cmdList->RSSetScissorRects(1, &scissorRect);
+
+	// clear
+	float clear_color[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	cmdList->ClearRenderTargetView(rtvH, clear_color, 0, nullptr);
+	cmdList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f/*Å‘å[“x*/, 0, 0, nullptr);
 
 	cmdList->SetGraphicsRootSignature(quadRootSignature.Get());
+	cmdList->SetDescriptorHeaps(1, peraSRVHeap.GetAddressOf());
+	auto handle = peraSRVHeap->GetGPUDescriptorHandleForHeapStart();
+	cmdList->SetGraphicsRootDescriptorTable(0, handle);
+
 	cmdList->SetPipelineState(quadPipeline.Get());
 	cmdList->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 	cmdList->IASetVertexBuffers(0, 1, &quadVBView);

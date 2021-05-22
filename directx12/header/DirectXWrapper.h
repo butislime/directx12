@@ -12,6 +12,8 @@ class DirectXWrapper
 {
 public:
 	bool Init(HWND hwnd);
+	void BeginPeraDraw();
+	void EndPeraDraw();
 	void BeginDraw();
 	void EndDraw();
 

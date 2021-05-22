@@ -315,12 +315,16 @@ void Application::Run()
 		pmdActor->Update();
 
 		// render
-		dxWrapper->BeginDraw();
+		dxWrapper->BeginPeraDraw();
 
 		auto command_list = dxWrapper->GetCommandList();
 		auto pipeline_state = pmdRenderer->GetPipelineState();
 		command_list->SetPipelineState(pipeline_state.Get());
 		pmdRenderer->Render(dxWrapper->GetDevice().Get(), command_list);
+
+		dxWrapper->EndPeraDraw();
+
+		dxWrapper->BeginDraw();
 
 		dxWrapper->EndDraw();
 	}
