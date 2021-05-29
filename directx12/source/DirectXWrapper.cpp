@@ -145,6 +145,7 @@ bool DirectXWrapper::Init(HWND hwnd)
 		heap_desc.NumDescriptors = 1;
 		heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		heap_desc.NodeMask = 0;
 		hresult = device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(peraSRVHeap.ReleaseAndGetAddressOf()));
 		std::cout << "Quad CreateSRVHeap res=" << hresult << std::endl;
 
@@ -278,6 +279,8 @@ bool DirectXWrapper::Init(HWND hwnd)
 		root_param.DescriptorTable.NumDescriptorRanges = 1;
 
 		D3D12_STATIC_SAMPLER_DESC sampler = CD3DX12_STATIC_SAMPLER_DESC(0);
+		sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC gps_desc = {};
 		gps_desc.InputLayout.NumElements = _countof(layout);
